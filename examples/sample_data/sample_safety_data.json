@@ -1,0 +1,42 @@
+[
+  {
+    "timestamp": "2023-01-01T12:00:00",
+    "source": "twitter",
+    "data": {
+      "text": "Fire reported near downtown",
+      "user": "citizen123",
+      "hashtags": ["#fire"]
+    },
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.0060
+    }
+  },
+  {
+    "timestamp": "2023-01-01T12:05:00",
+    "source": "police_scanner",
+    "data": {
+      "type": "fire",
+      "priority": 3,
+      "description": "Building fire downtown"
+    },
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.0060
+    }
+  },
+  {
+    "timestamp": "2023-01-01T12:10:00",
+    "source": "city_sensors",
+    "data": {
+      "noise_level": 95,
+      "crowd_density": 0.9,
+      "traffic_flow": 0.1,
+      "anomaly": true
+    },
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.0060
+    }
+  }
+]
