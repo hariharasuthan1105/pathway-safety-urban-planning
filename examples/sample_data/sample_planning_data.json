@@ -1,0 +1,45 @@
+[
+  {
+    "timestamp": "2023-01-01T12:00:00",
+    "source": "transit_api",
+    "data": {
+      "route_id": "M1",
+      "delay": 25,
+      "passenger_count": 150,
+      "vehicle_location": {
+        "lat": 40.7128,
+        "lon": -74.0060
+      }
+    },
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.0060
+    }
+  },
+  {
+    "timestamp": "2023-01-01T12:05:00",
+    "source": "traffic_api",
+    "data": {
+      "congestion_level": 0.8,
+      "average_speed": 15,
+      "incident_count": 2
+    },
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.0060
+    }
+  },
+  {
+    "timestamp": "2023-01-01T12:10:00",
+    "source": "environment_api",
+    "data": {
+      "air_quality_index": 120,
+      "noise_level": 75,
+      "temperature": 25
+    },
+    "location": {
+      "lat": 40.7128,
+      "lon": -74.0060
+    }
+  }
+]
