@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urban Intelligence - Smart Cities Platform</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="loading-content">
+            <div class="skyline">
+                <div class="building" style="--height: 40px;"></div>
+                <div class="building" style="--height: 60px;"></div>
+                <div class="building" style="--height: 35px;"></div>
+                <div class="building" style="--height: 50px;"></div>
+                <div class="building" style="--height: 70px;"></div>
+                <div class="building" style="--height: 45px;"></div>
+                <div class="building" style="--height: 55px;"></div>
+                <div class="building" style="--height: 40px;"></div>
+            </div>
+            
+            <div class="loading-logo">
+                <div class="logo-icon">
+                    <div class="spinner"></div>
+                </div>
+                <h1>Urban Intelligence</h1>
+                <p style="color: #bfdbfe; font-size: 0.875rem;">Smart Cities & Public Safety Platform</p>
+            </div>
+            
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <p id="progress-text" style="color: #bfdbfe; font-size: 0.875rem;">Initializing city systems... 0%</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="main-app" class="hidden">
+        <!-- Landing Page -->
+        <div id="landing-page">
+            <section class="hero">
+                <img src="https://images.unsplash.com/photo-1747499967281-c0c5eec9933c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzbWFydCUyMGNpdHklMjBza3lsaW5lJTIwbmlnaHQlMjBsaWdodHN8ZW58MXx8fHwxNzU5Mjk4MTI5fDA&ixlib=rb-4.1.0&q=80&w=1080" alt="Smart city" class="hero-bg">
+                <div class="hero-overlay"></div>
+                
+                <nav class="nav">
+                    <div class="nav-container">
+                        <div class="nav-brand">
+                            <div class="brand-icon">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M12 20V10"/>
+                                    <path d="M18 20V4"/>
+                                    <path d="M6 20v-4"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h1 style="font-size: 1.25rem;">Urban Intelligence</h1>
+                                <p style="font-size: 0.75rem; color: #bfdbfe;">Smart Cities Platform</p>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 1rem;">
+                            <button class="btn btn-ghost" onclick="openAuthModal()">Sign In</button>
+                            <button class="btn btn-primary" onclick="openAuthModal()">Get Started</button>
+                        </div>
+                    </div>
+                </nav>
+
+                <div class="hero-content">
+                    <h1 class="hero-title">
+                        Intelligent Cities, 
+                        <span class="gradient-text">Safer Communities</span>
+                    </h1>
+                    
+                    <p class="hero-description">
+                        Real-time urban intelligence platform combining public safety monitoring, 
+                        traffic analysis, and AI-powered insights for smarter city management.
+                    </p>
+
+                    <div class="hero-buttons">
+                        <button class="btn btn-primary" style="padding: 1rem 2rem; font-size: 1.125rem;" onclick="openAuthModal()">
+                            Start Monitoring
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14"/>
+                                <path d="m12 5 7 7-7 7"/>
+                            </svg>
+                        </button>
+                        
+                        <button class="btn btn-outline" style="padding: 1rem 2rem; font-size: 1.125rem;">
+                            Watch Demo
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                                <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="12" cy="12" r="10"/>
+                                    <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                                </svg>
+                            </div>
+                            <div class="stat-value">150+</div>
+                            <div style="color: #bfdbfe;">Cities Monitored</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+                                </svg>
+                            </div>
+                            <div class="stat-value">2.3K</div>
+                            <div style="color: #bfdbfe;">Safety Incidents Prevented</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-icon">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="9" cy="7" r="4"/>
+                                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                </svg>
+                            </div>
+                            <div class="stat-value">5.2M</div>
+                            <div style="color: #bfdbfe;">Citizens Protected</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- Dashboard -->
+        <div id="dashboard" class="dashboard hidden">
+            <header class="dashboard-header">
+                <div class="header-container">
+                    <div class="nav-brand">
+                        <div class="brand-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 20V10"/>
+                                <path d="M18 20V4"/>
+                                <path d="M6 20v-4"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h1 style="font-size: 1.25rem;">Urban Intelligence</h1>
+                            <p style="font-size: 0.75rem; color: var(--text-light);">Smart Cities Platform</p>
+                        </div>
+                    </div>
+                    
+                    <div class="header-actions">
+                        <button class="btn" style="padding: 0.5rem; position: relative;">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                            </svg>
+                            <span class="notification-badge">3</span>
+                        </button>
+                        
+                        <div class="user-menu">
+                            <div class="user-avatar" id="user-avatar">U</div>
+                            <div>
+                                <div style="font-weight: 500; font-size: 0.875rem;" id="user-name">User</div>
+                                <div style="font-size: 0.75rem; color: var(--text-light);" id="user-email">user@example.com</div>
+                            </div>
+                        </div>
+                        
+                        <button class="btn btn-ghost" onclick="signOut()">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                                <polyline points="16,17 21,12 16,7"/>
+                                <line x1="21" y1="12" x2="9" y2="12"/>
+                            </svg>
+                            Sign Out
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="dashboard-main">
+                <div class="tab-nav">
+                    <button class="tab-btn active" data-tab="overview">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 20V10"/>
+                            <path d="M18 20V4"/>
+                            <path d="M6 20v-4"/>
+                        </svg>
+                        <span>City Overview</span>
+                    </button>
+                    <button class="tab-btn" data-tab="safety">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+                        </svg>
+                        <span>Public Safety</span>
+                    </button>
+                    <button class="tab-btn" data-tab="chat">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <span>AI Assistant</span>
+                    </button>
+                </div>
+
+                <!-- Overview Tab -->
+                <div id="overview-tab" class="tab-content active">
+                    <div class="panel-header">
+                        <div>
+                            <h2>City Overview</h2>
+                            <p style="color: var(--text-light);">Real-time metrics and system status</p>
+                        </div>
+                        <div class="live-indicator">
+                            <div class="pulse-dot"></div>
+                            <span>Live</span>
+                        </div>
+                    </div>
+                    
+                    <div class="metrics-grid" id="metrics-grid">
+                        <!-- Metrics will be populated by JavaScript -->
+                    </div>
+                </div>
+
+                <!-- Safety Tab -->
+                <div id="safety-tab" class="tab-content">
+                    <div class="panel-header">
+                        <div>
+                            <h2 style="display: flex; align-items: center; gap: 0.5rem;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>
+                                </svg>
+                                Public Safety Monitor
+                            </h2>
+                            <p style="color: var(--text-light);">Real-time anomaly detection and emergency response</p>
+                        </div>
+                        <div class="live-indicator">
+                            <div class="pulse-dot red"></div>
+                            <span>Live Monitoring</span>
+                        </div>
+                    </div>
+                    
+                    <div class="safety-grid">
+                        <div class="safety-card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                        <line x1="12" y1="9" x2="12" y2="13"/>
+                                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                                    </svg>
+                                    Active Alerts
+                                </div>
+                                <span class="alert-count">3</span>
+                            </div>
+                            <div class="card-content" id="alerts-list">
+                                <!-- Alerts populated by JS -->
+                            </div>
+                        </div>
+                        
+                        <div class="safety-card">
+                            <div class="card-header">
+                                <div class="card-title">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                                        <circle cx="12" cy="13" r="3"/>
+                                    </svg>
+                                    Sensor Network
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="city-view">
+                                    <img src="https://images.unsplash.com/photo-1590560711594-85381f33d036?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHx1cmJhbiUyMHRyYWZmaWMlMjBtb25pdG9yaW5nJTIwc3VydmVpbGxhbmNlfGVufDF8fHx8MTc1OTI5ODEzMnww&ixlib=rb-4.1.0&q=80&w=1080" alt="City monitoring" class="city-image">
+                                    <div class="city-overlay">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/>
+                                            <circle cx="12" cy="13" r="3"/>
+                                        </svg>
+                                        <p style="margin-top: 0.5rem;">Live Camera Feed</p>
+                                    </div>
+                                </div>
+                                
+                                <div id="sensors-list">
+                                    <!-- Sensors populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chat Tab -->
+                <div id="chat-tab" class="tab-content">
+                    <div class="chat-container">
+                        <div class="chat-header">
+                            <h2 style="display: flex; align-items: center; gap: 0.5rem;">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                </svg>
+                                Urban Planning Assistant
+                            </h2>
+                            <div class="live-indicator">
+                                <div class="pulse-dot"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="quick-questions">
+                            <p style="font-size: 0.875rem; color: var(--text-light); margin-bottom: 0.5rem;">Quick questions:</p>
+                            <div class="questions-list">
+                                <button class="question-btn" onclick="askQuestion('What is the traffic situation downtown right now?')">Traffic downtown?</button>
+                                <button class="question-btn" onclick="askQuestion('Show me air quality trends for this week')">Air quality?</button>
+                                <button class="question-btn" onclick="askQuestion('Which areas need more public transport?')">Public transport?</button>
+                            </div>
+                        </div>
+                        
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="message assistant">
+                                <div class="message-avatar">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 8V4H8"/>
+                                        <rect width="16" height="12" x="4" y="8" rx="2"/>
+                                        <path d="M2 14h2"/>
+                                        <path d="M20 14h2"/>
+                                        <path d="M15 13v2"/>
+                                        <path d="M9 13v2"/>
+                                    </svg>
+                                </div>
+                                <div class="message-content">
+                                    <div class="message-bubble">
+                                        <p>Hello! I'm your Urban Planning AI Assistant. I can help you analyze city data, traffic patterns, and provide insights for urban development. What would you like to know?</p>
+                                    </div>
+                                    <div class="message-time">Just now</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="chat-input">
+                            <input type="text" id="chat-input-field" placeholder="Ask about traffic, air quality, public transport...">
+                            <button class="btn btn-primary" onclick="sendChatMessage()">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M22 2 11 13"/>
+                                    <polygon points="22,2 15,22 11,13 2,9"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    <!-- project-content -->
+        <div class="scp-wrapper">
+        <div class="scp-container">
+            <!-- Header -->
+            <div class="scp-header">
+                <h1>Smart City Projects</h1>
+                <p>Innovative solutions transforming urban environments through AI and real-time data processing</p>
+            </div>
+
+            <!-- Tab Buttons -->
+            <div class="scp-tab-container">
+                <button class="scp-tab-button scp-active scp-public-safety" data-scp-tab="public-safety">
+                    <svg class="scp-tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                    <span>Public Safety</span>
+                </button>
+                <button class="scp-tab-button scp-urban-planning" data-scp-tab="urban-planning">
+                    <svg class="scp-tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                    <span>Urban Planning</span>
+                </button>
+            </div>
+
+            <!-- Project Content -->
+            <div id="scpProjectCard" class="scp-project-card">
+                <!-- Content will be dynamically inserted here -->
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="scp-stats-container">
+                <div class="scp-stat-card">
+                    <div class="scp-stat-value">100%</div>
+                    <div class="scp-stat-label">AI-Powered</div>
+                </div>
+                <div class="scp-stat-card">
+                    <div class="scp-stat-value">24/7</div>
+                    <div class="scp-stat-label">Real-time Data</div>
+                </div>
+                <div class="scp-stat-card">
+                    <div class="scp-stat-value">City-wide</div>
+                    <div class="scp-stat-label">Coverage</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+       <div class="tech-arch-container">
+        <!-- Hero Section -->
+        <section class="tech-arch-hero" id="tech-arch-hero">
+            <h1 class="tech-arch-hero-title">Technical Architecture</h1>
+            <p class="tech-arch-hero-subtitle">
+                A comprehensive overview of our intelligent urban data processing pipeline
+            </p>
+        </section>
+
+        <!-- Data Processing Pipeline -->
+        <section class="tech-arch-pipeline-section">
+            <h2 class="tech-arch-section-title" id="tech-arch-pipeline-title">Data Processing Pipeline</h2>
+            
+            <div class="tech-arch-pipeline-container">
+                <div class="tech-arch-pipeline-grid">
+                    <!-- Step 1: Data Ingestion -->
+                    <div class="tech-arch-pipeline-step" data-step="1" data-delay="0.1">
+                        <div class="tech-arch-connecting-line tech-arch-line-1"></div>
+                        <div class="tech-arch-arrow tech-arch-arrow-1">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M6 4L10 8L6 12" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        
+                        <div class="tech-arch-step-badge tech-arch-badge-blue">
+                            <span>1</span>
+                        </div>
+                        
+                        <div class="tech-arch-step-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                                <path d="m3 5 9 9 9-9"/>
+                                <path d="m3 12 9 9 9-9"/>
+                                <path d="m3 19 9 9 9-9"/>
+                            </svg>
+                        </div>
+                        
+                        <div class="tech-arch-step-content">
+                            <h3 class="tech-arch-step-title">Data Ingestion</h3>
+                            <p class="tech-arch-step-subtitle">Stream processing from multiple sources</p>
+                            <ul class="tech-arch-step-list">
+                                <li>• Social Media (Twitter API)</li>
+                                <li>• Public Safety Feeds</li>
+                                <li>• IoT Sensors</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Processing -->
+                    <div class="tech-arch-pipeline-step" data-step="2" data-delay="0.3">
+                        <div class="tech-arch-connecting-line tech-arch-line-2"></div>
+                        <div class="tech-arch-arrow tech-arch-arrow-2">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M6 4L10 8L6 12" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        
+                        <div class="tech-arch-step-badge tech-arch-badge-purple">
+                            <span>2</span>
+                        </div>
+                        
+                        <div class="tech-arch-step-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect width="16" height="10" x="2" y="3" rx="2" ry="2"/>
+                                <path d="m7 11 2-2-2-2"/>
+                                <path d="m13 11 2-2-2-2"/>
+                            </svg>
+                        </div>
+                        
+                        <div class="tech-arch-step-content">
+                            <h3 class="tech-arch-step-title">Processing</h3>
+                            <p class="tech-arch-step-subtitle">Real-time analysis & indexing</p>
+                            <ul class="tech-arch-step-list">
+                                <li>• Real-time Data ingestion from 300+ sources</li>
+                                <li>• Dynamic Knowledge Base</li>
+                                <li>• Live Vector Search</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Dynamic RAG -->
+                    <div class="tech-arch-pipeline-step" data-step="3" data-delay="0.5">
+                        <div class="tech-arch-connecting-line tech-arch-line-3"></div>
+                        <div class="tech-arch-arrow tech-arch-arrow-3">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M6 4L10 8L6 12" stroke="#9CA3AF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </div>
+                        
+                        <div class="tech-arch-step-badge tech-arch-badge-green">
+                            <span>3</span>
+                        </div>
+                        
+                        <div class="tech-arch-step-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="m4.5 16.5-1-5 1-5"/>
+                                <path d="m10.5 21 5-1 5 1"/>
+                                <path d="m16.5 7.5-1-5 1-5"/>
+                                <path d="m21 10.5-5-1-5 1"/>
+                                <path d="m21 13.5-5 1-5-1"/>
+                                <path d="m3.5 6 1-5 1 5"/>
+                                <path d="m3.5 18 1 5 1-5"/>
+                                <path d="m10.5 3-5 1-5-1"/>
+                            </svg>
+                        </div>
+                        
+                        <div class="tech-arch-step-content">
+                            <h3 class="tech-arch-step-title">Dynamic RAG</h3>
+                            <p class="tech-arch-step-subtitle">Knowledge retrieval & generation</p>
+                            <ul class="tech-arch-step-list">
+                                <li>• Knowledge retrieval & generation</li>
+                                <li>• Contextual understanding</li>
+                                <li>• Multi-modal data fusion</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Step 4: Response -->
+                    <div class="tech-arch-pipeline-step" data-step="4" data-delay="0.7">
+                        <div class="tech-arch-step-badge tech-arch-badge-orange">
+                            <span>4</span>
+                        </div>
+                        
+                        <div class="tech-arch-step-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 3v18h18"/>
+                                <path d="m19 9-5 5-4-4-3 3"/>
+                            </svg>
+                        </div>
+                        
+                        <div class="tech-arch-step-content">
+                            <h3 class="tech-arch-step-title">Response</h3>
+                            <p class="tech-arch-step-subtitle">Real-time insights & alerts</p>
+                            <ul class="tech-arch-step-list">
+                                <li>• Real-time Dashboards</li>
+                                <li>• Copilot Chat Interface</li>
+                                <li>• Interactive City Maps</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Three Column Layout -->
+        <section class="tech-arch-columns-section">
+            <div class="tech-arch-columns-container">
+                <div class="tech-arch-columns-grid">
+                    <!-- Data Sources -->
+                    <div class="tech-arch-column tech-arch-column-blue" id="tech-arch-data-sources">
+                        <div class="tech-arch-column-header">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tech-arch-header-icon">
+                                <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                                <path d="m3 5 9 9 9-9"/>
+                                <path d="m3 12 9 9 9-9"/>
+                                <path d="m3 19 9 9 9-9"/>
+                            </svg>
+                            <h3 class="tech-arch-column-title">Data Sources</h3>
+                        </div>
+                        <div class="tech-arch-feature-list">
+                            <div class="tech-arch-feature-card" data-delay="0.1">
+                                <div class="tech-arch-feature-icon tech-arch-icon-pink">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2-.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Social Media (Twitter API)</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.2">
+                                <div class="tech-arch-feature-icon tech-arch-icon-blue">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Public Safety Feeds</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.3">
+                                <div class="tech-arch-feature-icon tech-arch-icon-gray">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
+                                        <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
+                                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                                        <circle cx="12" cy="20" r="1"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">IoT Sensors</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.4">
+                                <div class="tech-arch-feature-icon tech-arch-icon-blue">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M8 6v6h8V6z"/>
+                                        <path d="M15 6V4a1 1 0 0 0-1-1H10a1 1 0 0 0-1 1v2"/>
+                                        <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V9a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v6z"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Public Transit APIs</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.5">
+                                <div class="tech-arch-feature-icon tech-arch-icon-red">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.5 9C18.2 8.4 17.6 8 17 8H7c-.6 0-1.2.4-1.5 1L3.5 11.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/>
+                                        <circle cx="7" cy="17" r="2"/>
+                                        <path d="M9 17h6"/>
+                                        <circle cx="17" cy="17" r="2"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Traffic APIs</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.6">
+                                <div class="tech-arch-feature-icon tech-arch-icon-green">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/>
+                                        <path d="M9.6 4.6A2 2 0 1 1 11 8H2"/>
+                                        <path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Air Quality APIs</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pathway's LiveAI System -->
+                    <div class="tech-arch-column tech-arch-column-purple" id="tech-arch-system">
+                        <div class="tech-arch-column-header">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tech-arch-header-icon">
+                                <rect width="16" height="10" x="2" y="3" rx="2" ry="2"/>
+                                <path d="m7 11 2-2-2-2"/>
+                                <path d="m13 11 2-2-2-2"/>
+                            </svg>
+                            <h3 class="tech-arch-column-title">Pathway's LiveAI™ System</h3>
+                        </div>
+                        <div class="tech-arch-feature-list">
+                            <div class="tech-arch-feature-card" data-delay="0.1">
+                                <div class="tech-arch-feature-icon tech-arch-icon-purple">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+                                        <path d="m3 5 9 9 9-9"/>
+                                        <path d="m3 12 9 9 9-9"/>
+                                        <path d="m3 19 9 9 9-9"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Real-time Data Ingestion from 300+ sources</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.2">
+                                <div class="tech-arch-feature-icon tech-arch-icon-purple">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m4.5 16.5-1-5 1-5"/>
+                                        <path d="m10.5 21 5-1 5 1"/>
+                                        <path d="m16.5 7.5-1-5 1-5"/>
+                                        <path d="m21 10.5-5-1-5 1"/>
+                                        <path d="m21 13.5-5 1-5-1"/>
+                                        <path d="m3.5 6 1-5 1 5"/>
+                                        <path d="m3.5 18 1 5 1-5"/>
+                                        <path d="m10.5 3-5 1-5-1"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Dynamic Knowledge Base</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.3">
+                                <div class="tech-arch-feature-icon tech-arch-icon-purple">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M3 3v18h18"/>
+                                        <path d="m19 9-5 5-4-4-3 3"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Live Vector Search</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.4">
+                                <div class="tech-arch-feature-icon tech-arch-icon-purple">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                                        <path d="M12 9v4"/>
+                                        <path d="M12 17h.01"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Anomaly Detection</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.5">
+                                <div class="tech-arch-feature-icon tech-arch-icon-purple">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m4.5 16.5-1-5 1-5"/>
+                                        <path d="m10.5 21 5-1 5 1"/>
+                                        <path d="m16.5 7.5-1-5 1-5"/>
+                                        <path d="m21 10.5-5-1-5 1"/>
+                                        <path d="m21 13.5-5 1-5-1"/>
+                                        <path d="m3.5 6 1-5 1 5"/>
+                                        <path d="m3.5 18 1 5 1-5"/>
+                                        <path d="m10.5 3-5 1-5-1"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Dynamic RAG Capabilities</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.6">
+                                <div class="tech-arch-feature-icon tech-arch-icon-purple">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M6 8a6 6 0 0 1 12 0c0 7-3 9-6 9s-6-2-6-9"/>
+                                        <path d="M18 8a6 6 0 0 0-6-6 6 6 0 0 0-6 6"/>
+                                        <path d="M6 15h12"/>
+                                        <path d="M9 21h6"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Low-latency Processing</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Output Interfaces -->
+                    <div class="tech-arch-column tech-arch-column-green" id="tech-arch-outputs">
+                        <div class="tech-arch-column-header">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="tech-arch-header-icon">
+                                <path d="M3 3v18h18"/>
+                                <path d="m19 9-5 5-4-4-3 3"/>
+                            </svg>
+                            <h3 class="tech-arch-column-title">Output Interfaces</h3>
+                        </div>
+                        <div class="tech-arch-feature-list">
+                            <div class="tech-arch-feature-card" data-delay="0.1">
+                                <div class="tech-arch-feature-icon tech-arch-icon-green">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M3 3v18h18"/>
+                                        <path d="m19 9-5 5-4-4-3 3"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Real-time Dashboards</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.2">
+                                <div class="tech-arch-feature-icon tech-arch-icon-green">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                                        <circle cx="9" cy="7" r="4"/>
+                                        <path d="m22 21-3-3 3-3"/>
+                                        <path d="M16 18h4"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Copilot Chat Interface</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.3">
+                                <div class="tech-arch-feature-icon tech-arch-icon-green">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M14.106 5.553a2 2 0 0 0 1.788 0l.894-.447a2 2 0 0 1 2.894 1.789l-.447.894a2 2 0 0 0 0 1.788l.447.894a2 2 0 0 1-1.894 2.894l-.894-.447a2 2 0 0 0-1.788 0l-.894.447a2 2 0 0 1-2.894-1.789l.447-.894a2 2 0 0 0 0-1.788l-.447-.894a2 2 0 0 1 1.894-2.894l.894.447z"/>
+                                        <circle cx="12" cy="12" r="3"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Interactive City Maps</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.4">
+                                <div class="tech-arch-feature-icon tech-arch-icon-red">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+                                        <path d="M12 9v4"/>
+                                        <path d="M12 17h.01"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Alert Systems</span>
+                            </div>
+                            <div class="tech-arch-feature-card" data-delay="0.5">
+                                <div class="tech-arch-feature-icon tech-arch-icon-green">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
+                                    </svg>
+                                </div>
+                                <span class="tech-arch-feature-title">Analytics & Reports</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Architecture Demo -->
+        <section class="tech-arch-demo-section">
+            <div class="tech-arch-demo-container">
+                <div class="tech-arch-demo-content" id="tech-arch-demo">
+                    <p class="tech-arch-demo-label">Live Architecture Demo</p>
+                    <h2 class="tech-arch-demo-title">
+                        Real-time Urban Intelligence Platform
+                    </h2>
+                    <p class="tech-arch-demo-description">
+                        Experience the power of integrated smart city systems working together to provide 
+                        comprehensive urban insights and actionable intelligence.
+                    </p>
+                </div>
+
+                <div class="tech-arch-demo-image" id="tech-arch-demo-image">
+                    <img
+                        src="real-time-urban-inteligence-platform img.jpg"
+                        alt="Team collaborating on urban intelligence platform"
+                        class="tech-arch-demo-img"
+                    />
+                    <div class="tech-arch-demo-overlay"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal">
+        <div class="modal-overlay" onclick="closeAuthModal()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="auth-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                </div>
+                <h2 id="auth-title">Welcome Back</h2>
+                <p id="auth-description" style="color: var(--text-light);">Sign in to continue monitoring your city</p>
+            </div>
+            
+            <div class="modal-body">
+                <div class="auth-tabs">
+                    <button class="auth-tab active" onclick="switchAuthTab('signin')">Sign In</button>
+                    <button class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</button>
+                </div>
+                
+                <form id="auth-form">
+                    <div class="form-group hidden" id="name-group">
+                        <label for="name">Full Name</label>
+                        <div class="input-with-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <input type="text" id="name" name="name" placeholder="Enter your full name">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <div class="input-with-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                                <polyline points="22,6 12,13 2,6"/>
+                            </svg>
+                            <input type="email" id="email" name="email" placeholder="Enter your email" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="input-with-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group hidden" id="confirm-password-group">
+                        <label for="confirm-password">Confirm Password</label>
+                        <div class="input-with-icon">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                            <input type="password" id="confirm-password" name="confirm-password" placeholder="Confirm your password">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-full">
+                        <span id="auth-button-text">Sign In</span>
+                    </button>
+                    
+                    <div class="auth-switch">
+                        <button type="button" onclick="toggleAuthMode()" id="auth-switch-btn">
+                            Don't have an account? Sign up
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
