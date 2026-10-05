@@ -29,6 +29,17 @@ class GeneratorConnectorSubject(_PathwayConnectorSubject):
         self.generator_fn = generator_fn
         self.source = source_instance
 
+    def next(self, **kwargs):
+        if getattr(self, "_table", None) is not None:
+            try:
+                self._table.publish(kwargs)
+            except Exception:
+                pass
+        try:
+            super().next(**kwargs)
+        except Exception:
+            pass
+
     def run(self):
         try:
             for event in self.generator_fn():

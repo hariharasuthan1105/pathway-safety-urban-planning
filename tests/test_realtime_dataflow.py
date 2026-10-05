@@ -13,8 +13,20 @@ from src.processing.rag_system import RAGSystem
 @pytest.fixture(autouse=True)
 def clean_shared_state():
     reset_shared_state()
+    try:
+        from src.pathway_compat import pw
+        if hasattr(pw, "_active_streams"):
+            pw._active_streams.clear()
+    except Exception:
+        pass
     yield
     reset_shared_state()
+    try:
+        from src.pathway_compat import pw
+        if hasattr(pw, "_active_streams"):
+            pw._active_streams.clear()
+    except Exception:
+        pass
 
 def test_realtime_event_flow_to_copilot():
     mgr = get_shared_city_state_manager()

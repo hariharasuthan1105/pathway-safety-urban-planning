@@ -54,16 +54,25 @@ except ImportError:
 
     this = ThisProxy()
 
+    class UDFColumnExpression:
+        def __init__(self, fn: Callable, col_name: str):
+            self.fn = fn
+            self.col_name = col_name
+
     def udf(fn: Callable) -> Callable:
         """Decorator for user-defined functions."""
-        fn._is_udf = True  # type: ignore
-        return fn
+        def udf_wrapper(*args):
+            if args and hasattr(args[0], "name"):
+                return UDFColumnExpression(fn, args[0].name)
+            return fn(*args)
+        udf_wrapper._is_udf = True  # type: ignore
+        return udf_wrapper
 
     _ACTIVE_STREAMS: List[Any] = []
 
     class Table:
         def __init__(self, data: Optional[List[Dict[str, Any]]] = None, generator: Optional[Callable] = None, schema: Any = None):
-            self.data: List[Dict[str, Any]] = data or []
+            self._rows: List[Dict[str, Any]] = data or []
             self.generator = generator
             self.schema = schema
             self.children: List['Table'] = []
@@ -72,7 +81,7 @@ except ImportError:
             self.filter_fn: Optional[Callable[[Dict[str, Any]], bool]] = None
 
         def __getattr__(self, name: str):
-            if name.startswith("_") or name in ("data", "generator", "schema", "children", "subscribers", "transform_fn", "filter_fn"):
+            if name.startswith("_") or name in ("generator", "schema", "children", "subscribers", "transform_fn", "filter_fn"):
                 raise AttributeError(name)
             return ColumnExpression(name)
 
@@ -80,7 +89,7 @@ except ImportError:
             """Registers a sink callback that receives streaming events output by this Pathway table."""
             if callback not in self.subscribers:
                 self.subscribers.append(callback)
-            for row in list(self.data):
+            for row in list(self._rows):
                 try:
                     callback(row)
                 except Exception as e:
@@ -103,7 +112,7 @@ except ImportError:
                 except Exception:
                     return
 
-            self.data.append(processed_row)
+            self._rows.append(processed_row)
 
             # Notify direct sink subscribers
             for sub in list(self.subscribers):
@@ -122,7 +131,14 @@ except ImportError:
             def do_transform(row: Dict[str, Any]) -> Dict[str, Any]:
                 new_row = {}
                 for k, v in kwargs.items():
-                    if callable(v):
+                    if isinstance(v, UDFColumnExpression):
+                        val = row.get(v.col_name, row)
+                        try:
+                            new_row[k] = v.fn(val)
+                        except Exception as e:
+                            logger.warning(f"UDF execution error: {e}")
+                            new_row[k] = val
+                    elif callable(v):
                         arg_val = row.get("data", row)
                         try:
                             new_row[k] = v(arg_val)
@@ -166,7 +182,7 @@ except ImportError:
             return self._fetch_rows()
 
         def _fetch_rows(self) -> List[Dict[str, Any]]:
-            return self.data
+            return self._rows
 
         @classmethod
         def concat(cls, *args) -> 'Table':
@@ -208,7 +224,7 @@ except ImportError:
 
         @staticmethod
         def read(subject: Any, schema: Any = None) -> Table:
-            if isinstance(subject, ConnectorSubject):
+            if hasattr(subject, "run") or isinstance(subject, ConnectorSubject):
                 t = Table(generator=None, schema=schema)
                 subject._table = t
                 _ACTIVE_STREAMS.append((t, subject))
