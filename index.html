@@ -3,241 +3,579 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>South India Urban Intelligence & AI Copilot</title>
+    <title>South India Urban Intelligence • Real-Time Operations Platform</title>
     
-    <!-- Google Fonts Inter -->
+    <!-- Apple-style Typography: Inter & SF Pro System Stack -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     
     <!-- Leaflet GIS Map CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 
+    <!-- Three.js 3D Engine for Spatial City Visualization -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
     <!-- Application CSS -->
     <link rel="stylesheet" href="style.css">
 </head>
-<body>
-    <!-- Top Header Command Bar -->
-    <header class="command-header">
-        <div class="header-brand">
-            <div class="brand-logo">🏙️</div>
-            <div>
-                <h1 class="brand-title">South India Urban Intelligence</h1>
-                <p class="brand-subtitle">Pathway Real-Time Streaming • Grounded RAG • OpenAI AI Copilot</p>
-            </div>
-        </div>
-
-        <div class="header-controls">
-            <!-- Region / City Navigation Selector -->
-            <div class="selector-group">
-                <label for="city-selector">Region / City View:</label>
-                <select id="city-selector" class="nav-select">
-                    <optgroup label="Tamil Nadu">
-                        <option value="chennai" data-lat="13.0827" data-lon="80.2707">Chennai (Capital)</option>
-                        <option value="coimbatore" data-lat="11.0168" data-lon="76.9558">Coimbatore</option>
-                        <option value="madurai" data-lat="9.9252" data-lon="78.1198">Madurai</option>
-                        <option value="salem" data-lat="11.6643" data-lon="78.1460">Salem</option>
-                    </optgroup>
-                    <optgroup label="Kerala">
-                        <option value="kochi" data-lat="9.9312" data-lon="76.2673">Kochi (Cochin)</option>
-                        <option value="tvm" data-lat="8.5241" data-lon="76.9366">Thiruvananthapuram</option>
-                        <option value="kozhikode" data-lat="11.2588" data-lon="75.7804">Kozhikode</option>
-                    </optgroup>
-                    <optgroup label="Andhra Pradesh">
-                        <option value="vizag" data-lat="17.6868" data-lon="83.2185">Visakhapatnam</option>
-                        <option value="vijayawada" data-lat="16.5062" data-lon="80.6480">Vijayawada</option>
-                        <option value="tirupati" data-lat="13.6288" data-lon="79.4192">Tirupati</option>
-                    </optgroup>
-                </select>
+<body class="app-dark-theme">
+    
+    <!-- Top Floating Translucent Navigation Bar -->
+    <header class="nav-header">
+        <div class="nav-container">
+            <!-- Brand & Logo -->
+            <div class="brand-group">
+                <div class="brand-icon">
+                    <span class="pulse-ring"></span>
+                    <span class="icon-symbol">🏙️</span>
+                </div>
+                <div class="brand-text">
+                    <h1 class="brand-name">South India Urban Intelligence</h1>
+                    <p class="brand-tagline">Real-time intelligence for a changing city</p>
+                </div>
             </div>
 
-            <!-- Severity Filter -->
-            <div class="selector-group">
-                <select id="severity-filter" class="nav-select">
-                    <option value="ALL">All Severities</option>
-                    <option value="CRITICAL">CRITICAL</option>
-                    <option value="HIGH">HIGH</option>
-                    <option value="MODERATE">MODERATE</option>
-                    <option value="LOW">LOW</option>
-                </select>
-            </div>
+            <!-- Central Navigation Tabs -->
+            <nav class="nav-tabs" id="main-nav-tabs">
+                <button class="nav-tab active" data-view="overview">
+                    <span class="tab-icon">📊</span> Overview
+                </button>
+                <button class="nav-tab" data-view="cities">
+                    <span class="tab-icon">🏙️</span> Cities Explorer
+                </button>
+                <button class="nav-tab" data-view="events">
+                    <span class="tab-icon">⚡</span> Live Events
+                </button>
+                <button class="nav-tab" data-view="risk">
+                    <span class="tab-icon">🛡️</span> Risk Intelligence
+                </button>
+                <button class="nav-tab" data-view="environment">
+                    <span class="tab-icon">🌤️</span> Environment
+                </button>
+                <button class="nav-tab" data-view="copilot">
+                    <span class="tab-icon">🤖</span> AI Copilot
+                </button>
+            </nav>
 
-            <!-- Backend Status & Data Mode Badges -->
-            <div class="status-group">
-                <span id="data-mode-badge" class="mode-badge status-simulated">DATA_MODE: HYBRID</span>
-                <span id="backend-status-badge" class="status-indicator status-offline">● CONNECTING...</span>
-                <span id="last-updated-text" class="timestamp-display">Updated: --:--:--</span>
+            <!-- Right Controls: City Selector & Connection Status -->
+            <div class="nav-controls">
+                <div class="select-wrapper">
+                    <label for="city-selector" class="sr-only">Select City</label>
+                    <select id="city-selector" class="nav-select">
+                        <option value="all">Region: South India (All)</option>
+                        <optgroup label="Tamil Nadu">
+                            <option value="chennai" data-lat="13.0827" data-lon="80.2707">Chennai (Capital)</option>
+                            <option value="coimbatore" data-lat="11.0168" data-lon="76.9558">Coimbatore</option>
+                            <option value="madurai" data-lat="9.9252" data-lon="78.1198">Madurai</option>
+                            <option value="salem" data-lat="11.6643" data-lon="78.1460">Salem</option>
+                            <option value="trichy" data-lat="10.7905" data-lon="78.7047">Tiruchirappalli</option>
+                            <option value="tiruppur" data-lat="11.1085" data-lon="77.3411">Tiruppur</option>
+                            <option value="erode" data-lat="11.3410" data-lon="77.7172">Erode</option>
+                            <option value="vellore" data-lat="12.9165" data-lon="79.1325">Vellore</option>
+                        </optgroup>
+                        <optgroup label="Kerala">
+                            <option value="kochi" data-lat="9.9312" data-lon="76.2673">Kochi (Cochin)</option>
+                            <option value="tvm" data-lat="8.5241" data-lon="76.9366">Thiruvananthapuram</option>
+                            <option value="kozhikode" data-lat="11.2588" data-lon="75.7804">Kozhikode</option>
+                            <option value="thrissur" data-lat="10.5276" data-lon="76.2144">Thrissur</option>
+                            <option value="kollam" data-lat="8.8932" data-lon="76.6141">Kollam</option>
+                            <option value="kannur" data-lat="11.8745" data-lon="75.3704">Kannur</option>
+                        </optgroup>
+                        <optgroup label="Andhra Pradesh">
+                            <option value="vizag" data-lat="17.6868" data-lon="83.2185">Visakhapatnam</option>
+                            <option value="vijayawada" data-lat="16.5062" data-lon="80.6480">Vijayawada</option>
+                            <option value="guntur" data-lat="16.3067" data-lon="80.4365">Guntur</option>
+                            <option value="tirupati" data-lat="13.6288" data-lon="79.4192">Tirupati</option>
+                            <option value="nellore" data-lat="14.4426" data-lon="79.9865">Nellore</option>
+                            <option value="kurnool" data-lat="15.8281" data-lon="78.0373">Kurnool</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <div class="status-pill-group">
+                    <span id="data-mode-badge" class="mode-pill">DATA_MODE: HYBRID</span>
+                    <span id="backend-status-badge" class="status-pill pill-offline">● CONNECTING...</span>
+                    <span id="last-updated-text" class="timestamp-pill">Updated: --:--:--</span>
+                </div>
             </div>
         </div>
     </header>
 
-    <!-- Connection Error Warning Banner -->
-    <div id="connection-error-banner" class="error-banner hidden">
-        ⚠️ <strong>BACKEND CONNECTION OFFLINE:</strong> Unable to reach Pathway backend at <code>http://localhost:8000/api/state</code>. Reconnecting...
+    <!-- Polished System Connection Status Banner (Visible when backend is offline) -->
+    <div id="connection-error-banner" class="connection-offline-banner hidden">
+        <div class="offline-card-inner">
+            <div class="offline-icon">●</div>
+            <div class="offline-text">
+                <strong>SYSTEM CONNECTION: OFFLINE</strong>
+                <span>Unable to reach Urban Intelligence backend at <code>http://localhost:8000/api/state</code>. Retrying automatically...</span>
+            </div>
+            <button class="btn-retry" onclick="fetchBackendState()">Retry Now</button>
+        </div>
     </div>
 
-    <!-- Main Command Center Grid -->
-    <main class="dashboard-grid">
+    <!-- MAIN APP VIEWPORT CONTAINER -->
+    <main class="main-viewport">
         
-        <!-- Top Metrics / KPI Cards (Row 1) -->
-        <section class="kpi-row">
-            <div class="kpi-card">
-                <div class="kpi-label">REGIONAL RISK INDEX</div>
-                <div id="kpi-risk-score" class="kpi-value">-- <span class="kpi-unit">/100</span></div>
-                <div id="kpi-risk-badge-container">
-                    <span id="kpi-risk-badge" class="severity-badge badge-low">Loading live state...</span>
-                </div>
-            </div>
-
-            <div class="kpi-card">
-                <div class="kpi-label">INGESTED EVENTS</div>
-                <div id="kpi-events-count" class="kpi-value">--</div>
-                <div class="kpi-subtext" style="color: #38BDF8;">● Pathway Stream Ingestion</div>
-            </div>
-
-            <div class="kpi-card">
-                <div class="kpi-label">ACTIVE ANOMALIES</div>
-                <div id="kpi-anomalies-count" class="kpi-value" style="color: #EF4444;">--</div>
-                <div class="kpi-subtext" style="color: #F59E0B;">⚠️ Rule Flags Detected</div>
-            </div>
-
-            <div class="kpi-card">
-                <div class="kpi-label">CORRELATIONS</div>
-                <div id="kpi-correlations-count" class="kpi-value" style="color: #38BDF8;">--</div>
-                <div class="kpi-subtext" style="color: #10B981;">🔗 Multi-Source Overlaps</div>
-            </div>
-
-            <div class="kpi-card">
-                <div class="kpi-label">SYSTEM HEALTH</div>
-                <div id="kpi-system-health" class="kpi-value" style="color: #10B981; font-size: 1.4rem;">CHECKING</div>
-                <div id="kpi-health-subtext" class="kpi-subtext" style="color: #10B981;">Pathway Engine Status</div>
-            </div>
-        </section>
-
-        <!-- Main Middle Section (Map + Live Feed) -->
-        <section class="middle-row">
-            <!-- 2D Interactive GIS Map -->
-            <div class="panel-card map-panel">
-                <div class="panel-header">
-                    <h2>🗺️ Interactive South India GIS Map</h2>
-                    <span id="map-region-label" class="header-badge">Tamil Nadu / Kerala / Andhra Pradesh</span>
-                </div>
-                <div id="gis-map" class="map-container"></div>
-            </div>
-
-            <!-- Live Event Feed Panel -->
-            <div class="panel-card feed-panel">
-                <div class="panel-header">
-                    <h2>📡 Live Telemetry Stream Feed</h2>
-                    <span id="feed-count-badge" class="header-badge">-- Events</span>
-                </div>
-                <div id="event-feed-container" class="feed-container">
-                    <div class="empty-state">Loading live state from Pathway backend...</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Bottom Intelligence Section (Row 3) -->
-        <section class="bottom-row">
-            <!-- Environmental & Weather Telemetry -->
-            <div class="panel-card">
-                <div class="panel-header">
-                    <h2>🌤️ Open-Meteo Environmental Telemetry</h2>
-                </div>
-                <div id="environment-metrics-grid" class="metrics-grid">
-                    <div class="env-item">
-                        <div class="env-label">Temperature</div>
-                        <div id="env-temp" class="env-value">--</div>
+        <!-- VIEW 1: OVERVIEW (Default Dashboard) -->
+        <div id="view-overview" class="view-page active">
+            
+            <!-- Hero Landing & 3D Spatial Visualization Section -->
+            <section class="hero-section">
+                <div class="hero-info-card">
+                    <div class="hero-badge-row">
+                        <span class="pill-tag pill-accent">Pathway Real-Time Engine</span>
+                        <span class="pill-tag pill-glass">Grounded RAG + OpenAI</span>
+                        <span class="pill-tag pill-glass">South India Regional Ops</span>
                     </div>
-                    <div class="env-item">
-                        <div class="env-label">Condition</div>
-                        <div id="env-condition" class="env-value">--</div>
-                    </div>
-                    <div class="env-item">
-                        <div class="env-label">Air Quality Index (AQI)</div>
-                        <div id="env-aqi" class="env-value">--</div>
-                    </div>
-                    <div class="env-item">
-                        <div class="env-label">PM2.5 / PM10</div>
-                        <div id="env-pm" class="env-value">--</div>
-                    </div>
-                    <div class="env-item">
-                        <div class="env-label">Wind Speed</div>
-                        <div id="env-wind" class="env-value">--</div>
-                    </div>
-                    <div class="env-item">
-                        <div class="env-label">Nitrogen Dioxide (NO₂)</div>
-                        <div id="env-no2" class="env-value">--</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Zone Intelligence Breakdown -->
-            <div class="panel-card">
-                <div class="panel-header">
-                    <h2>🗺️ Spatial Zone Intelligence</h2>
-                </div>
-                <div id="zone-summary-container" class="zone-grid">
-                    <div class="empty-state">Loading zone intelligence state...</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- AI Urban Copilot Section (Full Width Panel) -->
-        <section class="copilot-row">
-            <div class="panel-card copilot-panel">
-                <div class="panel-header">
-                    <h2>🤖 AI Urban Copilot (Decision Support Console)</h2>
-                    <span id="copilot-llm-badge" class="header-badge" style="color: #10B981;">Grounded RAG + OpenAI LLM</span>
-                </div>
-
-                <div class="copilot-content">
-                    <!-- Copilot Suggestions -->
-                    <div class="suggestions-bar">
-                        <span class="suggestions-label">Suggested Queries:</span>
-                        <div id="suggestions-container" class="suggestions-buttons">
-                            <button class="btn-suggestion" onclick="fillCopilotPrompt('What is happening in the city right now?')">What is happening right now?</button>
-                            <button class="btn-suggestion" onclick="fillCopilotPrompt('Which zone has the highest risk?')">Which zone has highest risk?</button>
-                            <button class="btn-suggestion" onclick="fillCopilotPrompt('What are active operational anomalies?')">Show active anomalies</button>
-                            <button class="btn-suggestion" onclick="fillCopilotPrompt('What evidence supports current risk assessment?')">Inspect audit evidence</button>
+                    <h2 class="hero-headline">SOUTH INDIA<br><span class="gradient-text">URBAN INTELLIGENCE</span></h2>
+                    <p class="hero-description">
+                        Real-time operational visibility and AI decision-support across Tamil Nadu, Kerala, and Andhra Pradesh.
+                    </p>
+                    <div class="hero-metrics-row">
+                        <div class="hero-metric">
+                            <span class="hero-metric-label">Engine Mode</span>
+                            <span id="hero-data-mode" class="hero-metric-val">HYBRID</span>
+                        </div>
+                        <div class="hero-metric">
+                            <span class="hero-metric-label">Live Pipeline</span>
+                            <span id="hero-pipeline-status" class="hero-metric-val text-emerald">ACTIVE</span>
+                        </div>
+                        <div class="hero-metric">
+                            <span class="hero-metric-label">Regional Nodes</span>
+                            <span class="hero-metric-val">15 Cities</span>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Query Form -->
-                    <form id="copilot-form" class="copilot-form" onsubmit="submitCopilotQuery(event)">
-                        <input type="text" id="copilot-input" class="copilot-input" placeholder="Ask the AI Urban Copilot a question (e.g. Why is Zone A at high risk? What should an operator review first?)" required>
-                        <button type="submit" id="copilot-submit-btn" class="btn btn-primary">
-                            Submit Query to AI Copilot
+                <!-- 3D Animated Spatial City Model Canvas -->
+                <div class="hero-3d-card">
+                    <div class="card-glass-header">
+                        <div class="glass-title">
+                            <span class="live-dot"></span> 3D SPATIAL MODEL
+                        </div>
+                        <div class="glass-subtitle" id="3d-city-label">South India Metropolitan Mesh</div>
+                    </div>
+                    <div id="city-3d-viewport" class="canvas-3d-wrapper">
+                        <canvas id="city-3d-canvas"></canvas>
+                    </div>
+                    <div class="hero-3d-overlay">
+                        <span id="3d-risk-indicator" class="risk-badge-3d badge-low">Live Illumination: Synchronized</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- KPI Metric Cards Strip -->
+            <section class="kpi-strip">
+                <div class="kpi-card kpi-card-risk">
+                    <div class="kpi-header">
+                        <span class="kpi-title">REGIONAL RISK INDEX</span>
+                        <span class="kpi-icon">🛡️</span>
+                    </div>
+                    <div class="kpi-body">
+                        <div id="kpi-risk-score" class="kpi-big-num">--</div>
+                        <div class="kpi-denom">/100</div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span id="kpi-risk-badge" class="badge-status status-low">Loading live state...</span>
+                        <span id="kpi-risk-trend" class="kpi-subtext">Trend: STABLE</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">INGESTED EVENTS</span>
+                        <span class="kpi-icon">📡</span>
+                    </div>
+                    <div class="kpi-body">
+                        <div id="kpi-events-count" class="kpi-big-num text-cyan">--</div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-subtext text-cyan">● Pathway Stream Ingestion</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">ACTIVE ANOMALIES</span>
+                        <span class="kpi-icon">⚠️</span>
+                    </div>
+                    <div class="kpi-body">
+                        <div id="kpi-anomalies-count" class="kpi-big-num text-rose">--</div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-subtext text-amber">⚠️ Sensor & Rule Flags</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">CORRELATIONS</span>
+                        <span class="kpi-icon">🔗</span>
+                    </div>
+                    <div class="kpi-body">
+                        <div id="kpi-correlations-count" class="kpi-big-num text-purple">--</div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-subtext text-emerald">Multi-Source Overlaps</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">METROPOLITAN CITIES</span>
+                        <span class="kpi-icon">🏙️</span>
+                    </div>
+                    <div class="kpi-body">
+                        <div id="kpi-cities-online" class="kpi-big-num">15</div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span class="kpi-subtext text-blue">TN • KL • AP Nodes</span>
+                    </div>
+                </div>
+
+                <div class="kpi-card">
+                    <div class="kpi-header">
+                        <span class="kpi-title">SYSTEM HEALTH</span>
+                        <span class="kpi-icon">⚙️</span>
+                    </div>
+                    <div class="kpi-body">
+                        <div id="kpi-system-health" class="kpi-big-num text-emerald" style="font-size: 1.6rem;">CHECKING</div>
+                    </div>
+                    <div class="kpi-footer">
+                        <span id="kpi-health-subtext" class="kpi-subtext text-emerald">Pathway Engine Operational</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Overview Split Row: Spatial GIS Map + Live Stream Feed -->
+            <section class="split-grid-row">
+                <!-- GIS Map Panel -->
+                <div class="glass-panel map-panel-container">
+                    <div class="panel-top-bar">
+                        <div class="panel-heading">
+                            <h3>🗺️ Interactive South India GIS Map</h3>
+                            <span class="panel-tag">Tamil Nadu • Kerala • Andhra Pradesh</span>
+                        </div>
+                        <div class="panel-controls">
+                            <span id="map-region-status" class="status-indicator-tag">15 Cities Online</span>
+                        </div>
+                    </div>
+                    <div id="gis-map" class="spatial-map-container"></div>
+                </div>
+
+                <!-- Live Event Stream Feed -->
+                <div class="glass-panel feed-panel-container">
+                    <div class="panel-top-bar">
+                        <div class="panel-heading">
+                            <h3>⚡ Real-Time Telemetry Feed</h3>
+                            <span id="feed-count-badge" class="panel-badge">-- Events</span>
+                        </div>
+                        <button class="btn-sm" onclick="switchView('events')">View All →</button>
+                    </div>
+                    <div id="event-feed-container" class="timeline-feed-wrapper">
+                        <div class="loading-state-card">
+                            <div class="spinner"></div>
+                            <span>Loading live telemetry state from Pathway backend...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Data Connectors Infrastructure Status -->
+            <section class="connectors-section">
+                <div class="glass-panel">
+                    <div class="panel-top-bar">
+                        <div class="panel-heading">
+                            <h3>⚙️ Real-Time Data Connectors & System Pipeline</h3>
+                            <span class="panel-tag">Pathway Connector Network</span>
+                        </div>
+                    </div>
+                    <div id="connectors-status-grid" class="connectors-status-grid">
+                        <div class="loading-state-card">
+                            <div class="spinner"></div>
+                            <span>Fetching data source connector statuses...</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- VIEW 2: CITIES EXPLORER -->
+        <div id="view-cities" class="view-page">
+            <div class="page-header-title">
+                <h2>Metropolitan Cities Explorer</h2>
+                <p>Detailed spatial intelligence across Tamil Nadu, Kerala, and Andhra Pradesh.</p>
+            </div>
+
+            <!-- State Filter Tabs -->
+            <div class="state-filter-tabs">
+                <button class="filter-chip active" data-state="all">All States (15 Cities)</button>
+                <button class="filter-chip" data-state="tn">Tamil Nadu (8)</button>
+                <button class="filter-chip" data-state="kl">Kerala (6)</button>
+                <button class="filter-chip" data-state="ap">Andhra Pradesh (6)</button>
+            </div>
+
+            <!-- Cities Grid -->
+            <div id="cities-cards-grid" class="cities-grid-wrapper">
+                <!-- Dynamically populated city cards -->
+            </div>
+        </div>
+
+        <!-- VIEW 3: LIVE EVENTS TIMELINE -->
+        <div id="view-events" class="view-page">
+            <div class="page-header-title">
+                <h2>Live Telemetry Stream Timeline</h2>
+                <p>Unified real-time events ingested through Pathway streaming pipeline.</p>
+            </div>
+
+            <div class="events-toolbar">
+                <div class="toolbar-left">
+                    <label for="event-severity-filter" class="sr-only">Filter Severity</label>
+                    <select id="event-severity-filter" class="nav-select">
+                        <option value="ALL">All Severities</option>
+                        <option value="CRITICAL">CRITICAL</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="MODERATE">MODERATE</option>
+                        <option value="LOW">LOW</option>
+                    </select>
+
+                    <input type="text" id="event-search-input" class="search-input" placeholder="Search events by keyword, ID, or zone...">
+                </div>
+                <div id="timeline-events-counter" class="events-counter-tag">0 Events Ingested</div>
+            </div>
+
+            <div class="glass-panel">
+                <div id="full-events-timeline" class="full-timeline-wrapper">
+                    <div class="loading-state-card">
+                        <div class="spinner"></div>
+                        <span>Ingesting events from Pathway stream...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 4: RISK INTELLIGENCE -->
+        <div id="view-risk" class="view-page">
+            <div class="page-header-title">
+                <h2>Risk & Anomaly Intelligence</h2>
+                <p>Deterministic risk engine, temporal anomaly detection, and cross-source correlation analysis.</p>
+            </div>
+
+            <div class="risk-analytics-grid">
+                <!-- Risk Gauge & Overview Card -->
+                <div class="glass-panel risk-overview-panel">
+                    <div class="panel-top-bar">
+                        <h3>🛡️ Regional Risk Assessment</h3>
+                    </div>
+                    <div class="risk-display-row">
+                        <div class="risk-gauge-container">
+                            <div id="risk-score-circle" class="risk-score-circle">
+                                <span id="risk-score-val">--</span>
+                                <span class="risk-max">/100</span>
+                            </div>
+                        </div>
+                        <div class="risk-details-col">
+                            <div class="risk-level-tag-container">
+                                <span id="risk-level-badge" class="badge-status status-low">LOW</span>
+                                <span id="risk-trend-badge" class="trend-tag">Trend: STABLE</span>
+                            </div>
+                            <div class="risk-factors-box">
+                                <h4>Main Contributing Factors</h4>
+                                <ul id="risk-factors-list" class="factors-list">
+                                    <li>Loading backend risk factors...</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Anomalies Panel -->
+                <div class="glass-panel anomalies-panel">
+                    <div class="panel-top-bar">
+                        <h3>⚠️ Active Operational Anomalies</h3>
+                        <span id="anomalies-count-tag" class="panel-badge">0 Active</span>
+                    </div>
+                    <div id="active-anomalies-list" class="anomalies-list-wrapper">
+                        <div class="empty-state-text">No active operational anomalies detected in current window.</div>
+                    </div>
+                </div>
+
+                <!-- Spatial Zone Risk Breakdown -->
+                <div class="glass-panel zone-breakdown-panel">
+                    <div class="panel-top-bar">
+                        <h3>🗺️ Spatial Zone Breakdown</h3>
+                    </div>
+                    <div id="zone-summary-container" class="zones-cards-grid">
+                        <div class="empty-state-text">Loading spatial zone metrics...</div>
+                    </div>
+                </div>
+
+                <!-- Cross-Source Correlations Panel -->
+                <div class="glass-panel correlations-panel">
+                    <div class="panel-top-bar">
+                        <h3>🔗 Cross-Source Correlation Network</h3>
+                        <span id="correlations-count-tag" class="panel-badge">0 Correlations</span>
+                    </div>
+                    <div id="correlations-list" class="correlations-list-wrapper">
+                        <div class="empty-state-text">No cross-source correlations detected.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 5: ENVIRONMENTAL INTELLIGENCE -->
+        <div id="view-environment" class="view-page">
+            <div class="page-header-title">
+                <h2>Environmental Intelligence</h2>
+                <p>Live REST telemetry from Open-Meteo Weather and Air Quality APIs.</p>
+            </div>
+
+            <div class="environment-dashboard-grid">
+                <!-- Open-Meteo Current Metrics Card -->
+                <div class="glass-panel env-main-card">
+                    <div class="panel-top-bar">
+                        <h3>🌤️ Open-Meteo Weather & Air Quality Metrics</h3>
+                        <span class="panel-tag">Live REST Stream</span>
+                    </div>
+                    <div id="environment-metrics-grid" class="env-metrics-grid">
+                        <div class="env-card">
+                            <div class="env-card-icon">🌡️</div>
+                            <div class="env-card-info">
+                                <span class="env-card-label">Temperature</span>
+                                <span id="env-temp" class="env-card-val">--</span>
+                            </div>
+                        </div>
+                        <div class="env-card">
+                            <div class="env-card-icon">⛅</div>
+                            <div class="env-card-info">
+                                <span class="env-card-label">Weather Condition</span>
+                                <span id="env-condition" class="env-card-val">--</span>
+                            </div>
+                        </div>
+                        <div class="env-card">
+                            <div class="env-card-icon">🫁</div>
+                            <div class="env-card-info">
+                                <span class="env-card-label">Air Quality Index (AQI)</span>
+                                <span id="env-aqi" class="env-card-val">--</span>
+                            </div>
+                        </div>
+                        <div class="env-card">
+                            <div class="env-card-icon">💨</div>
+                            <div class="env-card-info">
+                                <span class="env-card-label">PM2.5 / PM10</span>
+                                <span id="env-pm" class="env-card-val">--</span>
+                            </div>
+                        </div>
+                        <div class="env-card">
+                            <div class="env-card-icon">🍃</div>
+                            <div class="env-card-info">
+                                <span class="env-card-label">Wind Speed</span>
+                                <span id="env-wind" class="env-card-val">--</span>
+                            </div>
+                        </div>
+                        <div class="env-card">
+                            <div class="env-card-icon">🏭</div>
+                            <div class="env-card-info">
+                                <span class="env-card-label">Nitrogen Dioxide (NO₂)</span>
+                                <span id="env-no2" class="env-card-val">--</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- South India Regional Weather Overview -->
+                <div class="glass-panel env-regional-card">
+                    <div class="panel-top-bar">
+                        <h3>📍 South India Atmospheric Monitoring</h3>
+                    </div>
+                    <div id="regional-env-cities-grid" class="regional-env-grid">
+                        <!-- City Weather Snippets -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- VIEW 6: AI URBAN COPILOT WORKSPACE -->
+        <div id="view-copilot" class="view-page">
+            <div class="copilot-workspace-container">
+                <div class="copilot-header-card glass-panel">
+                    <div class="copilot-brand-title">
+                        <div class="copilot-avatar">🤖</div>
+                        <div>
+                            <h2>Urban Intelligence Copilot</h2>
+                            <p>Ask about the live operational state across South India.</p>
+                        </div>
+                    </div>
+                    <div class="copilot-badge-group">
+                        <span id="copilot-llm-badge" class="badge-status status-emerald">Grounded RAG + OpenAI LLM</span>
+                    </div>
+                </div>
+
+                <!-- Suggested Query Chips -->
+                <div class="copilot-suggestions-row">
+                    <span class="suggestions-title">Suggested Prompts:</span>
+                    <div class="suggestions-chips-wrapper">
+                        <button class="chip-suggestion" onclick="fillCopilotPrompt('What is happening in the city right now?')">What is happening right now?</button>
+                        <button class="chip-suggestion" onclick="fillCopilotPrompt('Which zone has the highest risk?')">Which zone has highest risk?</button>
+                        <button class="chip-suggestion" onclick="fillCopilotPrompt('What are active operational anomalies?')">Show active anomalies</button>
+                        <button class="chip-suggestion" onclick="fillCopilotPrompt('What evidence supports current risk assessment?')">Inspect audit evidence</button>
+                        <button class="chip-suggestion" onclick="fillCopilotPrompt('What is the weather and AQI status?')">Check weather & AQI</button>
+                    </div>
+                </div>
+
+                <!-- Query Form -->
+                <form id="copilot-form" class="copilot-input-form" onsubmit="submitCopilotQuery(event)">
+                    <div class="input-glow-wrapper">
+                        <input type="text" id="copilot-input" class="copilot-text-input" placeholder="Ask the AI Copilot a question (e.g. Why is Chennai at high risk? What should an operator review first?)" required>
+                        <button type="submit" id="copilot-submit-btn" class="btn-copilot-send">
+                            <span>Submit Query</span>
+                            <span class="btn-arrow">→</span>
                         </button>
-                    </form>
+                    </div>
+                </form>
 
-                    <!-- Response Display Container -->
-                    <div id="copilot-results" class="copilot-results-container">
-                        <div class="copilot-notice">
-                            Enter a question above or select a suggested prompt to generate AI decision support grounded in up-to-the-second Pathway streaming state.
-                        </div>
+                <!-- AI Response Card Display -->
+                <div id="copilot-results" class="copilot-response-wrapper">
+                    <div class="copilot-welcome-card glass-panel">
+                        <div class="welcome-icon">💬</div>
+                        <h3>AI Decision-Support Workspace</h3>
+                        <p>Enter a query above or click a suggested prompt to retrieve grounded insights generated directly from Pathway streaming data and OpenAI LLM.</p>
                     </div>
                 </div>
             </div>
-        </section>
-
-        <!-- System Health & Data Source Infrastructure (Row 5) -->
-        <section class="infrastructure-row">
-            <div class="panel-card">
-                <div class="panel-header">
-                    <h2>⚙️ Data Connectors & System Infrastructure</h2>
-                </div>
-                <div id="connectors-status-grid" class="connectors-grid">
-                    <div class="empty-state">Loading connector infrastructure health...</div>
-                </div>
-            </div>
-        </section>
-
+        </div>
     </main>
 
+    <!-- Mobile Bottom Floating Navigation Bar -->
+    <nav class="mobile-bottom-nav">
+        <button class="mobile-nav-btn active" data-view="overview">
+            <span class="m-icon">📊</span>
+            <span class="m-label">Overview</span>
+        </button>
+        <button class="mobile-nav-btn" data-view="cities">
+            <span class="m-icon">🏙️</span>
+            <span class="m-label">Cities</span>
+        </button>
+        <button class="mobile-nav-btn" data-view="events">
+            <span class="m-icon">⚡</span>
+            <span class="m-label">Events</span>
+        </button>
+        <button class="mobile-nav-btn" data-view="risk">
+            <span class="m-icon">🛡️</span>
+            <span class="m-label">Risk</span>
+        </button>
+        <button class="mobile-nav-btn" data-view="copilot">
+            <span class="m-icon">🤖</span>
+            <span class="m-label">Copilot</span>
+        </button>
+    </nav>
+
     <!-- Footer -->
-    <footer class="command-footer">
-        <p>South India Urban Intelligence & AI Copilot Platform • Powered by <strong>Pathway Streaming Engine</strong>, <strong>Real-Time Grounded RAG</strong>, and <strong>OpenAI API</strong></p>
+    <footer class="app-footer">
+        <div class="footer-inner">
+            <p>South India Urban Intelligence Platform • Powered by <strong>Pathway Streaming Engine</strong>, <strong>Grounded RAG</strong>, and <strong>OpenAI API</strong></p>
+        </div>
     </footer>
 
     <!-- Leaflet JS Library -->

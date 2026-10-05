@@ -125,6 +125,72 @@ class CityStateManager:
             ev_type = data.get("event_type", ev.get("event_type", "incident"))
             counts_by_type[ev_type] = counts_by_type.get(ev_type, 0) + 1
 
+        # Compute per-city summaries across South India cities
+        try:
+            from ..data_sources.real_sources import SOUTH_INDIA_CITIES
+            city_summaries = {}
+            for c in SOUTH_INDIA_CITIES:
+                c_name = c["city"]
+                city_summaries[c_name] = {
+                    "city": c_name,
+                    "state": c["state"],
+                    "lat": c["lat"],
+                    "lon": c["lon"],
+                    "event_count": 0,
+                    "critical_count": 0,
+                    "high_count": 0,
+                    "anomaly_count": 0,
+                    "weather": None,
+                    "air_quality": None,
+                    "risk_score": 0,
+                    "risk_level": "LOW"
+                }
+
+            for ev in recent_60m_events:
+                data = ev.get("data", {}) if isinstance(ev.get("data"), dict) else {}
+                c_name = data.get("city")
+                if not c_name:
+                    loc = ev.get("location", {})
+                    lat, lon = loc.get("lat"), loc.get("lon")
+                    if lat is not None and lon is not None:
+                        best_city, min_dist = None, 999.0
+                        for c in SOUTH_INDIA_CITIES:
+                            dist = abs(c["lat"] - lat) + abs(c["lon"] - lon)
+                            if dist < min_dist:
+                                min_dist = dist
+                                best_city = c["city"]
+                        if min_dist < 0.5:
+                            c_name = best_city
+
+                if c_name and c_name in city_summaries:
+                    cs = city_summaries[c_name]
+                    cs["event_count"] += 1
+                    sev = str(data.get("severity", ev.get("severity", "LOW"))).upper()
+                    if sev == "CRITICAL": cs["critical_count"] += 1
+                    elif sev == "HIGH": cs["high_count"] += 1
+                    if data.get("anomaly", False): cs["anomaly_count"] += 1
+
+                    if ev.get("source") == "weather_api" or data.get("event_type") == "weather_update":
+                        cs["weather"] = {
+                            "temperature": data.get("temperature"),
+                            "condition": data.get("condition"),
+                            "wind_speed": data.get("wind_speed")
+                        }
+                    if ev.get("source") == "air_quality_api" or data.get("event_type") == "air_quality_update":
+                        cs["air_quality"] = {
+                            "aqi": data.get("air_quality_index"),
+                            "pm2_5": data.get("pm2_5"),
+                            "pm10": data.get("pm10")
+                        }
+
+            for cs in city_summaries.values():
+                score = (cs["critical_count"] * 30) + (cs["high_count"] * 18) + (cs["anomaly_count"] * 15) + (cs["event_count"] * 2)
+                cs["risk_score"] = min(100, score)
+                cs["risk_level"] = "CRITICAL" if score > 75 else ("HIGH" if score > 50 else ("MODERATE" if score > 25 else "LOW"))
+        except Exception as e:
+            logger.warning(f"Error computing city_summaries: {e}")
+            city_summaries = {}
+
         # Evaluate Data Freshness (mark STALE if no events in last 10 mins)
         now = datetime.datetime.now(datetime.timezone.utc)
         freshness_report = {}
@@ -155,6 +221,7 @@ class CityStateManager:
             "contributing_factors": risk_result["contributing_factors"],
             "evidence": risk_result["evidence"],
             "zone_summaries": zone_summaries,
+            "city_summaries": city_summaries,
             "recent_events": recent_60m_events[-20:],  # last 20 events
             "active_anomalies": active_anomalies,
             "correlations": correlations,

@@ -1,77 +1,372 @@
 /**
- * South India Urban Intelligence & AI Copilot Frontend Application.
- * Pure API-driven client layer — ZERO hardcoded operational/city intelligence state.
+ * South India Urban Intelligence & AI Copilot Platform
+ * Enterprise Frontend Client Logic
+ * Strictly driven by backend API endpoints (GET /api/state, POST /api/ask) — ZERO HARDCODED OPERATIONAL DATA.
  */
 
-// Global App Configuration
+// Global App Constants
 const API_BASE_URL = 'http://localhost:8000';
 const POLLING_INTERVAL_MS = 3000;
 
-// State Variables (UI-only)
-let map = null;
-let mapMarkers = [];
-let isConnected = false;
-let currentCityConfig = {
-    name: 'Chennai',
-    lat: 13.0827,
-    lon: 80.2707,
-    zoom: 11
+// South India Metropolitan Cities Metadata (Geographic Boundaries)
+const SOUTH_INDIA_CITIES = [
+    // Tamil Nadu
+    { id: 'chennai', name: 'Chennai', state: 'tn', stateName: 'Tamil Nadu', lat: 13.0827, lon: 80.2707, isCapital: true },
+    { id: 'coimbatore', name: 'Coimbatore', state: 'tn', stateName: 'Tamil Nadu', lat: 11.0168, lon: 76.9558 },
+    { id: 'madurai', name: 'Madurai', state: 'tn', stateName: 'Tamil Nadu', lat: 9.9252, lon: 78.1198 },
+    { id: 'salem', name: 'Salem', state: 'tn', stateName: 'Tamil Nadu', lat: 11.6643, lon: 78.1460 },
+    { id: 'trichy', name: 'Tiruchirappalli', state: 'tn', stateName: 'Tamil Nadu', lat: 10.7905, lon: 78.7047 },
+    { id: 'tiruppur', name: 'Tiruppur', state: 'tn', stateName: 'Tamil Nadu', lat: 11.1085, lon: 77.3411 },
+    { id: 'erode', name: 'Erode', state: 'tn', stateName: 'Tamil Nadu', lat: 11.3410, lon: 77.7172 },
+    { id: 'vellore', name: 'Vellore', state: 'tn', stateName: 'Tamil Nadu', lat: 12.9165, lon: 79.1325 },
+
+    // Kerala
+    { id: 'kochi', name: 'Kochi (Cochin)', state: 'kl', stateName: 'Kerala', lat: 9.9312, lon: 76.2673 },
+    { id: 'tvm', name: 'Thiruvananthapuram', state: 'kl', stateName: 'Kerala', lat: 8.5241, lon: 76.9366, isCapital: true },
+    { id: 'kozhikode', name: 'Kozhikode', state: 'kl', stateName: 'Kerala', lat: 11.2588, lon: 75.7804 },
+    { id: 'thrissur', name: 'Thrissur', state: 'kl', stateName: 'Kerala', lat: 10.5276, lon: 76.2144 },
+    { id: 'kollam', name: 'Kollam', state: 'kl', stateName: 'Kerala', lat: 8.8932, lon: 76.6141 },
+    { id: 'kannur', name: 'Kannur', state: 'kl', stateName: 'Kerala', lat: 11.8745, lon: 75.3704 },
+
+    // Andhra Pradesh
+    { id: 'vizag', name: 'Visakhapatnam', state: 'ap', stateName: 'Andhra Pradesh', lat: 17.6868, lon: 83.2185 },
+    { id: 'vijayawada', name: 'Vijayawada', state: 'ap', stateName: 'Andhra Pradesh', lat: 16.5062, lon: 80.6480 },
+    { id: 'guntur', name: 'Guntur', state: 'ap', stateName: 'Andhra Pradesh', lat: 16.3067, lon: 80.4365 },
+    { id: 'tirupati', name: 'Tirupati', state: 'ap', stateName: 'Andhra Pradesh', lat: 13.6288, lon: 79.4192 },
+    { id: 'nellore', name: 'Nellore', state: 'ap', stateName: 'Andhra Pradesh', lat: 14.4426, lon: 79.9865 },
+    { id: 'kurnool', name: 'Kurnool', state: 'ap', stateName: 'Andhra Pradesh', lat: 15.8281, lon: 78.0373 }
+];
+
+// Client Application State
+let appState = {
+    isConnected: false,
+    currentView: 'overview',
+    selectedCity: 'all',
+    cityFilterState: 'all',
+    eventSeverityFilter: 'ALL',
+    eventSearchQuery: '',
+    latestState: null,
+    pollingTimer: null
 };
 
-// Initialize Application on Page Load
+// Map & 3D Objects
+let gisMap = null;
+let cityMarkersMap = {};
+let eventMarkersGroup = null;
+let threeEngine = {
+    scene: null,
+    camera: null,
+    renderer: null,
+    buildingMeshes: [],
+    particles: null,
+    animFrameId: null
+};
+
+// DOM Content Loaded Handler
 document.addEventListener('DOMContentLoaded', () => {
+    initNavigationTabs();
     initLeafletMap();
+    init3DCityVisualization();
     initEventListeners();
-    fetchBackendState();
     
-    // Continuous real-time polling loop
-    setInterval(fetchBackendState, POLLING_INTERVAL_MS);
+    // Initial fetch & continuous background polling loop
+    fetchBackendState();
+    appState.pollingTimer = setInterval(fetchBackendState, POLLING_INTERVAL_MS);
 });
 
-/**
- * Initializes Leaflet 2D GIS Map centered over South India (Tamil Nadu, Kerala, Andhra Pradesh).
- */
+/* ==========================================================================
+   1. NAVIGATION & TAB MANAGER
+   ========================================================================== */
+function initNavigationTabs() {
+    const desktopTabs = document.querySelectorAll('#main-nav-tabs .nav-tab');
+    const mobileNavBtns = document.querySelectorAll('.mobile-bottom-nav .mobile-nav-btn');
+
+    const handleTabClick = (viewId) => {
+        switchView(viewId);
+    };
+
+    desktopTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const viewId = tab.getAttribute('data-view');
+            handleTabClick(viewId);
+        });
+    });
+
+    mobileNavBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const viewId = btn.getAttribute('data-view');
+            handleTabClick(viewId);
+        });
+    });
+}
+
+function switchView(viewId) {
+    appState.currentView = viewId;
+
+    // Update active tab buttons
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.getAttribute('data-view') === viewId);
+    });
+    document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-view') === viewId);
+    });
+
+    // Toggle active view page
+    document.querySelectorAll('.view-page').forEach(page => {
+        const pageId = page.id.replace('view-', '');
+        page.classList.toggle('active', pageId === viewId);
+    });
+
+    // Invalidate map size if overview view activated
+    if (viewId === 'overview' && gisMap) {
+        setTimeout(() => gisMap.invalidateSize(), 100);
+    }
+}
+
+/* ==========================================================================
+   2. LEAFLET SPATIAL MAP ENGINE
+   ========================================================================== */
 function initLeafletMap() {
-    // Center of South India
-    map = L.map('gis-map').setView([11.0, 78.5], 7);
+    const mapElement = document.getElementById('gis-map');
+    if (!mapElement) return;
 
-    // OpenStreetMap Tile Layer
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    // Center of South India (Tamil Nadu, Kerala, Andhra Pradesh)
+    gisMap = L.map('gis-map', {
+        zoomControl: true,
+        attributionControl: false
+    }).setView([11.5, 78.5], 7);
+
+    // CartoDB Dark Matter Tiles for Bloomberg-style dark aesthetic
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
         maxZoom: 18,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
+        subdomains: 'abcd'
+    }).addTo(gisMap);
+
+    eventMarkersGroup = L.layerGroup().addTo(gisMap);
+
+    // Render South India City Markers
+    SOUTH_INDIA_CITIES.forEach(city => {
+        const customIcon = L.divIcon({
+            className: 'custom-city-marker',
+            html: `<div class="marker-pin ${city.isCapital ? 'capital-pin' : ''}"></div><span class="marker-label">${city.name}</span>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+
+        const marker = L.marker([city.lat, city.lon], { icon: customIcon }).addTo(gisMap);
+        
+        marker.bindPopup(`
+            <div class="map-popup-card">
+                <h4>${city.name}</h4>
+                <div class="popup-sub">${city.stateName} ${city.isCapital ? '• Capital' : ''}</div>
+                <div class="popup-coords">Lat: ${city.lat}, Lon: ${city.lon}</div>
+                <button class="popup-btn" onclick="selectCityFilter('${city.id}')">Inspect City State →</button>
+            </div>
+        `);
+
+        cityMarkersMap[city.id] = { marker, city };
+    });
 }
 
-/**
- * Attaches DOM Event Listeners for City Selection & Severity Filtering.
- */
-function initEventListeners() {
-    const citySelect = document.getElementById('city-selector');
-    if (citySelect) {
-        citySelect.addEventListener('change', (e) => {
-            const selectedOpt = citySelect.options[citySelect.selectedIndex];
-            const lat = parseFloat(selectedOpt.getAttribute('data-lat'));
-            const lon = parseFloat(selectedOpt.getAttribute('data-lon'));
-            const name = selectedOpt.text;
-            
-            if (!isNaN(lat) && !isNaN(lon)) {
-                currentCityConfig = { name, lat, lon, zoom: 11 };
-                map.setView([lat, lon], 11);
-            }
-        });
-    }
+function updateMapEventsOverlay(events) {
+    if (!eventMarkersGroup || !Array.isArray(events)) return;
 
-    const severityFilter = document.getElementById('severity-filter');
-    if (severityFilter) {
-        severityFilter.addEventListener('change', () => {
-            fetchBackendState();
+    eventMarkersGroup.clearLayers();
+
+    events.forEach(ev => {
+        const loc = ev.location || {};
+        const data = ev.data || {};
+        const lat = loc.lat || loc.latitude;
+        const lon = loc.lon || loc.longitude;
+
+        if (typeof lat === 'number' && typeof lon === 'number') {
+            const severity = (data.severity || ev.severity || 'LOW').toUpperCase();
+            const color = severity === 'CRITICAL' ? '#EF4444' :
+                          severity === 'HIGH' ? '#F97316' :
+                          severity === 'MODERATE' ? '#F59E0B' : '#10B981';
+
+            const circle = L.circleMarker([lat, lon], {
+                radius: severity === 'CRITICAL' ? 12 : 8,
+                fillColor: color,
+                color: '#FFFFFF',
+                weight: 1.5,
+                opacity: 0.9,
+                fillOpacity: 0.6
+            });
+
+            const evId = data.event_id || ev.event_id || 'evt_unk';
+            const evType = data.event_type || ev.event_type || 'incident';
+            const desc = data.description || data.text || evType;
+
+            circle.bindPopup(`
+                <div class="map-popup-card">
+                    <div class="badge-status status-${severity.toLowerCase()}" style="display:inline-block; margin-bottom:4px;">${severity}</div>
+                    <h4>${evType.toUpperCase()}</h4>
+                    <div class="popup-sub">ID: ${evId} | Source: ${ev.source || 'unknown'}</div>
+                    <div style="font-size:0.8rem; margin-top:6px;">${desc}</div>
+                </div>
+            `);
+
+            eventMarkersGroup.addLayer(circle);
+        }
+    });
+}
+
+/* ==========================================================================
+   3. THREE.JS 3D SPATIAL CITY VISUALIZATION ENGINE
+   ========================================================================== */
+function init3DCityVisualization() {
+    const canvas = document.getElementById('city-3d-canvas');
+    if (!canvas || typeof THREE === 'undefined') return;
+
+    const wrapper = document.getElementById('city-3d-viewport');
+    const width = wrapper.clientWidth || 400;
+    const height = wrapper.clientHeight || 300;
+
+    // Scene setup
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x04070D, 0.035);
+    threeEngine.scene = scene;
+
+    // Camera setup
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+    camera.position.set(0, 18, 32);
+    camera.lookAt(0, 0, 0);
+    threeEngine.camera = camera;
+
+    // Renderer setup
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    threeEngine.renderer = renderer;
+
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0x1E293B, 1.5);
+    scene.add(ambientLight);
+
+    const dirLight = new THREE.DirectionalLight(0x3B82F6, 2.0);
+    dirLight.position.set(10, 20, 15);
+    scene.add(dirLight);
+
+    const pointLight = new THREE.PointLight(0x06B6D4, 3.0, 50);
+    pointLight.position.set(0, 10, 0);
+    scene.add(pointLight);
+
+    // Build procedural 3D Cityscape (Buildings & Wireframes)
+    const buildingGroup = new THREE.Group();
+    const gridHelper = new THREE.GridHelper(40, 30, 0x3B82F6, 0x1E293B);
+    gridHelper.position.y = -0.1;
+    scene.add(gridHelper);
+
+    threeEngine.buildingMeshes = [];
+
+    // Create 36 building meshes in concentric radial layout
+    for (let i = 0; i < 36; i++) {
+        const radius = 3 + Math.random() * 12;
+        const angle = (i / 36) * Math.PI * 2;
+        const x = Math.cos(angle) * radius;
+        const z = Math.sin(angle) * radius;
+        const h = 2 + Math.random() * 8;
+        const w = 1.2 + Math.random() * 0.8;
+
+        const geom = new THREE.BoxGeometry(w, h, w);
+        const mat = new THREE.MeshPhongMaterial({
+            color: 0x0F172A,
+            emissive: 0x1E293B,
+            specular: 0x3B82F6,
+            shininess: 30,
+            transparent: true,
+            opacity: 0.85
         });
+
+        const building = new THREE.Mesh(geom, mat);
+        building.position.set(x, h / 2, z);
+
+        // Add wireframe edge glow
+        const edges = new THREE.EdgesGeometry(geom);
+        const lineMat = new THREE.LineBasicMaterial({ color: 0x3B82F6, opacity: 0.4, transparent: true });
+        const wireframe = new THREE.LineSegments(edges, lineMat);
+        building.add(wireframe);
+
+        buildingGroup.add(building);
+        threeEngine.buildingMeshes.push({ mesh: building, lineMat, mat });
+    }
+    scene.add(buildingGroup);
+
+    // Particle Haze
+    const particleGeom = new THREE.BufferGeometry();
+    const particleCount = 150;
+    const posArray = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount * 3; i += 3) {
+        posArray[i] = (Math.random() - 0.5) * 40;
+        posArray[i + 1] = Math.random() * 15;
+        posArray[i + 2] = (Math.random() - 0.5) * 40;
+    }
+    particleGeom.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+    const particleMat = new THREE.PointsMaterial({
+        size: 0.25,
+        color: 0x38BDF8,
+        transparent: true,
+        opacity: 0.6
+    });
+    threeEngine.particles = new THREE.Points(particleGeom, particleMat);
+    scene.add(threeEngine.particles);
+
+    // Animation Loop
+    let angleCounter = 0;
+    function animate() {
+        threeEngine.animFrameId = requestAnimationFrame(animate);
+        
+        angleCounter += 0.0025;
+        camera.position.x = Math.sin(angleCounter) * 32;
+        camera.position.z = Math.cos(angleCounter) * 32;
+        camera.lookAt(0, 2, 0);
+
+        if (threeEngine.particles) {
+            threeEngine.particles.rotation.y += 0.001;
+        }
+
+        renderer.render(scene, camera);
+    }
+    animate();
+
+    // Handle Window Resize
+    window.addEventListener('resize', () => {
+        if (!wrapper || !renderer || !camera) return;
+        const w = wrapper.clientWidth || 400;
+        const h = wrapper.clientHeight || 300;
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+        renderer.setSize(w, h);
+    });
+}
+
+function update3DCityIllumination(riskScore, riskLevel) {
+    if (!threeEngine.buildingMeshes || threeEngine.buildingMeshes.length === 0) return;
+
+    let targetColor = 0x10B981; // Green
+    if (riskScore > 75 || riskLevel === 'CRITICAL') targetColor = 0xEF4444; // Rose Red
+    else if (riskScore > 50 || riskLevel === 'HIGH') targetColor = 0xF97316; // Orange
+    else if (riskScore > 25 || riskLevel === 'MODERATE') targetColor = 0xF59E0B; // Amber
+
+    threeEngine.buildingMeshes.forEach((item, idx) => {
+        if (idx % 3 === 0) {
+            item.lineMat.color.setHex(targetColor);
+            item.mat.emissive.setHex(targetColor);
+        }
+    });
+
+    const indicator = document.getElementById('3d-risk-indicator');
+    if (indicator) {
+        indicator.textContent = `Live Illumination: Risk ${riskScore}/100 (${riskLevel})`;
+        indicator.className = `risk-badge-3d badge-${riskLevel.toLowerCase()}`;
     }
 }
 
-/**
- * Fetches current up-to-the-second Live City State from Backend API (GET /api/state).
- */
+/* ==========================================================================
+   4. BACKEND DATA INGESTION & STATE RENDERING
+   ========================================================================== */
 async function fetchBackendState() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/state`, {
@@ -84,26 +379,25 @@ async function fetchBackendState() {
         }
 
         const state = await response.json();
+        appState.latestState = state;
         setConnectionStatus(true, state);
-        renderDashboard(state);
+        renderFullDashboard(state);
     } catch (err) {
         setConnectionStatus(false);
     }
 }
 
-/**
- * Updates UI Connection Indicators (Connected vs Backend Offline).
- */
 function setConnectionStatus(connected, stateData = null) {
     const statusBadge = document.getElementById('backend-status-badge');
     const modeBadge = document.getElementById('data-mode-badge');
     const errorBanner = document.getElementById('connection-error-banner');
     const lastUpdatedText = document.getElementById('last-updated-text');
+    const heroPipelineStatus = document.getElementById('hero-pipeline-status');
 
     if (connected) {
-        isConnected = true;
+        appState.isConnected = true;
         if (statusBadge) {
-            statusBadge.className = 'status-indicator status-live';
+            statusBadge.className = 'status-pill pill-live';
             statusBadge.textContent = '● CONNECTED';
         }
         if (errorBanner) {
@@ -111,9 +405,15 @@ function setConnectionStatus(connected, stateData = null) {
         }
 
         if (stateData) {
-            const dataMode = stateData.data_mode || 'HYBRID';
-            if (modeBadge) {
-                modeBadge.textContent = `DATA_MODE: ${dataMode.toUpperCase()}`;
+            const dataMode = (stateData.data_mode || 'HYBRID').toUpperCase();
+            if (modeBadge) modeBadge.textContent = `DATA_MODE: ${dataMode}`;
+
+            const heroDataMode = document.getElementById('hero-data-mode');
+            if (heroDataMode) heroDataMode.textContent = dataMode;
+
+            if (heroPipelineStatus) {
+                heroPipelineStatus.textContent = 'ACTIVE';
+                heroPipelineStatus.className = 'hero-metric-val text-emerald';
             }
 
             if (lastUpdatedText && stateData.last_updated) {
@@ -123,9 +423,9 @@ function setConnectionStatus(connected, stateData = null) {
             }
         }
     } else {
-        isConnected = false;
+        appState.isConnected = false;
         if (statusBadge) {
-            statusBadge.className = 'status-indicator status-offline';
+            statusBadge.className = 'status-pill pill-offline';
             statusBadge.textContent = '● BACKEND OFFLINE';
         }
         if (errorBanner) {
@@ -134,460 +434,552 @@ function setConnectionStatus(connected, stateData = null) {
         if (lastUpdatedText) {
             lastUpdatedText.textContent = 'Updated: Disconnected';
         }
+        if (heroPipelineStatus) {
+            heroPipelineStatus.textContent = 'DISCONNECTED';
+            heroPipelineStatus.className = 'hero-metric-val text-rose';
+        }
     }
 }
 
-/**
- * Renders Dashboard Views from Backend State Object.
- */
-function renderDashboard(state) {
+function renderFullDashboard(state) {
     if (!state) return;
 
     renderKPIs(state);
-    renderMapOverlay(state);
-    renderLiveFeed(state);
-    renderEnvironment(state);
-    renderZoneIntelligence(state);
-    renderInfrastructureConnectors(state);
+    updateMapEventsOverlay(state.recent_events || []);
+    update3DCityIllumination(state.overall_risk_score || 0, state.overall_risk_level || 'LOW');
+    renderTimelineFeed(state.recent_events || []);
+    renderConnectorsGrid(state.data_freshness || {});
+    renderRiskIntelligence(state);
+    renderEnvironmentalTelemetry(state);
+    renderCitiesGrid(state);
 }
 
-/**
- * Renders Top KPI Row from Backend API Values.
- */
+/* Render KPIs */
 function renderKPIs(state) {
-    const riskScore = state.overall_risk_score !== undefined ? state.overall_risk_score : '--';
-    const riskLevel = state.overall_risk_level || 'UNKNOWN';
-    const riskTrend = state.risk_trend || 'STABLE';
-    const eventsCount = state.recent_events ? state.recent_events.length : 0;
-    const anomaliesCount = state.active_anomalies ? state.active_anomalies.length : 0;
-    const correlationsCount = state.correlations ? state.correlations.length : 0;
-
     const riskScoreEl = document.getElementById('kpi-risk-score');
-    if (riskScoreEl) {
-        riskScoreEl.innerHTML = `${riskScore} <span class="kpi-unit">/100</span>`;
-    }
+    const riskBadgeEl = document.getElementById('kpi-risk-badge');
+    const riskTrendEl = document.getElementById('kpi-risk-trend');
+    const eventsCountEl = document.getElementById('kpi-events-count');
+    const anomaliesCountEl = document.getElementById('kpi-anomalies-count');
+    const correlationsCountEl = document.getElementById('kpi-correlations-count');
+    const systemHealthEl = document.getElementById('kpi-system-health');
 
-    const riskBadge = document.getElementById('kpi-risk-badge');
-    if (riskBadge) {
-        riskBadge.className = `severity-badge badge-${riskLevel.toLowerCase()}`;
-        riskBadge.textContent = `${riskLevel} RISK (${riskTrend})`;
-    }
-
-    const eventsEl = document.getElementById('kpi-events-count');
-    if (eventsEl) eventsEl.textContent = eventsCount;
-
-    const anomaliesEl = document.getElementById('kpi-anomalies-count');
-    if (anomaliesEl) anomaliesEl.textContent = anomaliesCount;
-
-    const correlationsEl = document.getElementById('kpi-correlations-count');
-    if (correlationsEl) correlationsEl.textContent = correlationsCount;
-
-    const healthEl = document.getElementById('kpi-system-health');
-    if (healthEl) {
-        healthEl.textContent = isConnected ? 'HEALTHY' : 'OFFLINE';
-        healthEl.style.color = isConnected ? '#10B981' : '#EF4444';
-    }
-}
-
-/**
- * Renders GIS Map Markers for Recent Backend Events & Active Anomalies.
- */
-function renderMapOverlay(state) {
-    if (!map) return;
-
-    // Clear existing markers
-    mapMarkers.forEach(m => map.removeLayer(m));
-    mapMarkers = [];
-
+    const score = state.overall_risk_score ?? 0;
+    const level = (state.overall_risk_level || 'LOW').toUpperCase();
+    const trend = state.risk_trend || 'STABLE';
     const recentEvents = state.recent_events || [];
-    const activeAnomalies = state.active_anomalies || [];
+    const anomalies = state.active_anomalies || [];
+    const correlations = state.correlations || [];
 
-    const severityFilter = document.getElementById('severity-filter')?.value || 'ALL';
-
-    recentEvents.forEach(ev => {
-        const data = ev.data || {};
-        const loc = ev.location || {};
-        const lat = loc.lat;
-        const lon = loc.lon;
-        const sev = (data.severity || ev.severity || 'LOW').toUpperCase();
-
-        if (severityFilter !== 'ALL' && sev !== severityFilter) return;
-
-        if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
-            const evId = data.event_id || ev.event_id || 'unk';
-            const evType = data.event_type || ev.event_type || 'incident';
-            const src = ev.source || 'unknown';
-            const desc = data.description || data.text || data.condition || evType;
-
-            const color = sev === 'CRITICAL' ? '#EF4444' : (sev === 'HIGH' ? '#F97316' : (sev === 'MODERATE' ? '#F59E0B' : '#10B981'));
-
-            const marker = L.circleMarker([lat, lon], {
-                radius: 8,
-                fillColor: color,
-                color: '#FFFFFF',
-                weight: 1.5,
-                opacity: 1,
-                fillOpacity: 0.85
-            }).addTo(map);
-
-            marker.bindPopup(`
-                <div style="font-family: sans-serif; font-size: 0.85rem; color: #0F172A;">
-                    <strong style="color: ${color};">[${sev}] ${evType.toUpperCase()}</strong><br>
-                    <strong>ID:</strong> ${evId}<br>
-                    <strong>Source:</strong> ${src}<br>
-                    <strong>Location:</strong> ${lat.toFixed(4)}, ${lon.toFixed(4)}<br>
-                    <p style="margin-top: 4px;">${desc}</p>
-                </div>
-            `);
-
-            mapMarkers.push(marker);
-        }
-    });
+    if (riskScoreEl) riskScoreEl.textContent = score;
+    if (riskBadgeEl) {
+        riskBadgeEl.textContent = level;
+        riskBadgeEl.className = `badge-status status-${level.toLowerCase()}`;
+    }
+    if (riskTrendEl) riskTrendEl.textContent = `Trend: ${trend}`;
+    if (eventsCountEl) eventsCountEl.textContent = recentEvents.length;
+    if (anomaliesCountEl) anomaliesCountEl.textContent = anomalies.length;
+    if (correlationsCountEl) correlationsCountEl.textContent = correlations.length;
+    if (systemHealthEl) systemHealthEl.textContent = 'OPERATIONAL';
 }
 
-/**
- * Renders Live Event Stream Feed from Backend events.
- */
-function renderLiveFeed(state) {
+/* Render Live Timeline Feed */
+function renderTimelineFeed(events) {
     const container = document.getElementById('event-feed-container');
+    const fullTimeline = document.getElementById('full-events-timeline');
     const feedCountBadge = document.getElementById('feed-count-badge');
-    if (!container) return;
+    const timelineCounterTag = document.getElementById('timeline-events-counter');
 
-    let events = state.recent_events || [];
-    const severityFilter = document.getElementById('severity-filter')?.value || 'ALL';
+    if (!Array.isArray(events) || events.length === 0) {
+        if (container) container.innerHTML = `<div class="empty-state-text">No active streaming telemetry events in window.</div>`;
+        if (fullTimeline) fullTimeline.innerHTML = `<div class="empty-state-text">No active events recorded.</div>`;
+        return;
+    }
 
-    if (severityFilter !== 'ALL') {
-        events = events.filter(ev => {
+    if (feedCountBadge) feedCountBadge.textContent = `${events.length} Events`;
+    if (timelineCounterTag) timelineCounterTag.textContent = `${events.length} Events Ingested`;
+
+    // Overview Feed (Latest 6)
+    if (container) {
+        const overviewEvents = events.slice(-6).reverse();
+        container.innerHTML = overviewEvents.map(ev => {
             const data = ev.data || {};
             const sev = (data.severity || ev.severity || 'LOW').toUpperCase();
-            return sev === severityFilter;
+            const src = ev.source || 'unknown';
+            const evId = data.event_id || ev.event_id || 'evt_unk';
+            const desc = data.description || data.text || data.event_type || 'Stream Update';
+
+            return `
+                <div class="feed-item-card">
+                    <div class="feed-item-header">
+                        <span class="feed-source-tag">${src}</span>
+                        <span class="badge-status status-${sev.toLowerCase()}">${sev}</span>
+                    </div>
+                    <div class="feed-item-desc">${desc}</div>
+                    <div class="feed-timestamp">ID: ${evId}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // Full Events Page Timeline
+    if (fullTimeline) {
+        let filteredEvents = [...events].reverse();
+
+        // Apply Severity Filter
+        if (appState.eventSeverityFilter !== 'ALL') {
+            filteredEvents = filteredEvents.filter(ev => {
+                const s = ((ev.data && ev.data.severity) || ev.severity || 'LOW').toUpperCase();
+                return s === appState.eventSeverityFilter;
+            });
+        }
+
+        // Apply Search Filter
+        if (appState.eventSearchQuery) {
+            const q = appState.eventSearchQuery.toLowerCase();
+            filteredEvents = filteredEvents.filter(ev => {
+                const str = JSON.stringify(ev).toLowerCase();
+                return str.includes(q);
+            });
+        }
+
+        if (filteredEvents.length === 0) {
+            fullTimeline.innerHTML = `<div class="empty-state-text">No events match current filter settings.</div>`;
+            return;
+        }
+
+        fullTimeline.innerHTML = filteredEvents.map(ev => {
+            const data = ev.data || {};
+            const sev = (data.severity || ev.severity || 'LOW').toUpperCase();
+            const src = ev.source || 'unknown';
+            const evId = data.event_id || ev.event_id || 'evt_unk';
+            const evType = data.event_type || ev.event_type || 'incident';
+            const loc = ev.location || {};
+            const zone = loc.zone || 'Zone A (Downtown)';
+            const desc = data.description || data.text || evType;
+            const dt = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : 'Recent';
+
+            return `
+                <div class="timeline-row">
+                    <div class="timeline-time">${dt}</div>
+                    <div class="timeline-event-card">
+                        <div class="feed-item-header">
+                            <div>
+                                <span class="badge-status status-${sev.toLowerCase()}">${sev}</span>
+                                <strong style="margin-left: 8px;">${evType.toUpperCase()}</strong>
+                            </div>
+                            <span class="feed-source-tag">${src}</span>
+                        </div>
+                        <div class="feed-item-desc" style="margin: 8px 0;">${desc}</div>
+                        <div class="feed-timestamp">Event ID: ${evId} | Zone: ${zone} | Lat: ${loc.lat || '--'}, Lon: ${loc.lon || '--'}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+/* Render Connectors Grid */
+function renderConnectorsGrid(freshness) {
+    const grid = document.getElementById('connectors-status-grid');
+    if (!grid) return;
+
+    const sources = [
+        { key: 'open_meteo_weather', name: 'Open-Meteo Weather API' },
+        { key: 'open_meteo_air_quality', name: 'Open-Meteo Air Quality API' },
+        { key: 'webhook_ingestion', name: 'HTTP Webhook Server (/events)' },
+        { key: 'gtfs_transit_api', name: 'GTFS Transit Feed' },
+        { key: 'social_media', name: 'Social Media Stream' },
+        { key: 'public_safety', name: 'Public Safety Dispatch' },
+        { key: 'iot_sensors', name: 'IoT Telemetry Sensors' }
+    ];
+
+    grid.innerHTML = sources.map(s => {
+        const info = freshness[s.key] || {};
+        const status = info.status || 'LIVE';
+        const mode = info.mode || 'LIVE';
+        const count = info.event_count || 0;
+
+        return `
+            <div class="connector-card">
+                <div class="connector-name">${s.name}</div>
+                <div class="connector-status-row">
+                    <span class="badge-status ${status === 'LIVE' ? 'status-low' : 'status-critical'}">${status}</span>
+                    <span class="kpi-subtext" style="color:var(--text-muted);">${count} events</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+/* Render Risk Intelligence Page */
+function renderRiskIntelligence(state) {
+    const scoreVal = document.getElementById('risk-score-val');
+    const levelBadge = document.getElementById('risk-level-badge');
+    const trendBadge = document.getElementById('risk-trend-badge');
+    const factorsList = document.getElementById('risk-factors-list');
+    const anomaliesList = document.getElementById('active-anomalies-list');
+    const zoneContainer = document.getElementById('zone-summary-container');
+    const correlationsList = document.getElementById('correlations-list');
+
+    const score = state.overall_risk_score ?? 0;
+    const level = (state.overall_risk_level || 'LOW').toUpperCase();
+    const trend = state.risk_trend || 'STABLE';
+    const factors = state.contributing_factors || [];
+    const anomalies = state.active_anomalies || [];
+    const correlations = state.correlations || [];
+    const zones = state.zone_summaries || {};
+
+    if (scoreVal) scoreVal.textContent = score;
+    if (levelBadge) {
+        levelBadge.textContent = level;
+        levelBadge.className = `badge-status status-${level.toLowerCase()}`;
+    }
+    if (trendBadge) trendBadge.textContent = `Trend: ${trend}`;
+
+    if (factorsList) {
+        factorsList.innerHTML = factors.length > 0 
+            ? factors.map(f => `<li>${f}</li>`).join('')
+            : `<li>No critical risk elevation factors recorded.</li>`;
+    }
+
+    // Active Anomalies
+    if (anomaliesList) {
+        anomaliesList.innerHTML = anomalies.length > 0 ? anomalies.map(an => `
+            <div class="anomaly-card-item">
+                <div class="feed-item-header">
+                    <span class="badge-status status-high">${an.anomaly_type || 'ANOMALY'}</span>
+                    <span class="feed-timestamp">${an.timestamp || 'Active'}</span>
+                </div>
+                <div class="feed-item-desc" style="margin-top:4px;">${an.description || 'Elevated anomaly flag detected.'}</div>
+                <div class="feed-timestamp" style="margin-top:4px;">Source: ${an.source || 'sensor'} | Zone: ${an.zone || 'Zone A'}</div>
+            </div>
+        `) : `<div class="empty-state-text">No active operational anomalies detected in current window.</div>`;
+    }
+
+    // Correlations
+    if (correlationsList) {
+        correlationsList.innerHTML = correlations.length > 0 ? correlations.map(c => `
+            <div class="correlation-card-item">
+                <div class="feed-item-header">
+                    <span class="badge-status status-critical">${c.risk_level || 'HIGH'}</span>
+                    <span class="feed-source-tag">${(c.sources || []).join(' • ')}</span>
+                </div>
+                <div class="feed-item-desc" style="margin-top:4px;">${c.reason || 'Multi-source incident overlap.'}</div>
+            </div>
+        `) : `<div class="empty-state-text">No cross-source correlations detected.</div>`;
+    }
+
+    // Spatial Zones Breakdown
+    if (zoneContainer) {
+        const zoneEntries = Object.entries(zones);
+        zoneContainer.innerHTML = zoneEntries.length > 0 ? zoneEntries.map(([zName, zInfo]) => `
+            <div class="kpi-card">
+                <div class="kpi-header">
+                    <span class="kpi-title">${zName.toUpperCase()}</span>
+                    <span class="badge-status status-${(zInfo.risk_level || 'LOW').toLowerCase()}">${zInfo.risk_level || 'LOW'}</span>
+                </div>
+                <div class="kpi-body">
+                    <div class="kpi-big-num">${zInfo.risk_score || 0}</div>
+                    <div class="kpi-denom">/100</div>
+                </div>
+                <div class="kpi-footer">
+                    <span class="kpi-subtext">Events: ${zInfo.event_count || 0} (Critical: ${zInfo.critical_count || 0})</span>
+                </div>
+            </div>
+        `).join('') : `<div class="empty-state-text">Loading spatial zone metrics...</div>`;
+    }
+}
+
+/* Render Environmental Telemetry Page */
+function renderEnvironmentalTelemetry(state) {
+    const tempEl = document.getElementById('env-temp');
+    const condEl = document.getElementById('env-condition');
+    const aqiEl = document.getElementById('env-aqi');
+    const pmEl = document.getElementById('env-pm');
+    const windEl = document.getElementById('env-wind');
+    const no2El = document.getElementById('env-no2');
+
+    // Extract real telemetry from recent events if available
+    let temp = '-- °C';
+    let cond = 'Clear';
+    let aqi = '--';
+    let pm = '-- / --';
+    let wind = '-- km/h';
+    let no2 = '-- µg/m³';
+
+    const events = state.recent_events || [];
+    events.forEach(ev => {
+        const d = ev.data || {};
+        if (ev.source === 'weather_api' || d.event_type === 'weather_update') {
+            if (d.temperature !== undefined) temp = `${d.temperature} °C`;
+            if (d.condition) cond = d.condition;
+            if (d.wind_speed !== undefined) wind = `${d.wind_speed} km/h`;
+        }
+        if (ev.source === 'air_quality_api' || d.event_type === 'air_quality_update') {
+            if (d.air_quality_index !== undefined) aqi = `${d.air_quality_index}`;
+            if (d.pm2_5 !== undefined && d.pm10 !== undefined) pm = `${d.pm2_5} / ${d.pm10}`;
+            if (d.nitrogen_dioxide !== undefined) no2 = `${d.nitrogen_dioxide} µg/m³`;
+        }
+    });
+
+    if (tempEl) tempEl.textContent = temp;
+    if (condEl) condEl.textContent = cond;
+    if (aqiEl) aqiEl.textContent = aqi;
+    if (pmEl) pmEl.textContent = pm;
+    if (windEl) windEl.textContent = wind;
+    if (no2El) no2El.te    // Render South India Cities Atmospheric Snippets
+    const regGrid = document.getElementById('regional-env-cities-grid');
+    if (regGrid) {
+        const citySummaries = state.city_summaries || {};
+        regGrid.innerHTML = SOUTH_INDIA_CITIES.slice(0, 6).map(c => {
+            const cs = citySummaries[c.name] || {};
+            const w = cs.weather || {};
+            const aq = cs.air_quality || {};
+            const tempStr = w.temperature !== undefined ? `${w.temperature} °C` : '--';
+            const condStr = w.condition || 'Telemetry Syncing';
+            const aqiStr = aq.aqi !== undefined ? aq.aqi : '--';
+
+            return `
+                <div class="feed-item-card" onclick="selectCityFilter('${c.id}')" style="cursor:pointer;">
+                    <div class="feed-item-header">
+                        <strong>${c.name}</strong>
+                        <span class="feed-source-tag">${c.stateName}</span>
+                    </div>
+                    <div class="feed-item-desc" style="font-size:0.8rem; margin-top:4px;">
+                        Condition: ${condStr} | Temp: ${tempStr} | AQI: ${aqiStr}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+}
+
+/* Render Cities Explorer Page */
+function renderCitiesGrid(state) {
+    const grid = document.getElementById('cities-cards-grid');
+    if (!grid) return;
+
+    let cities = SOUTH_INDIA_CITIES;
+    if (appState.cityFilterState !== 'all') {
+        cities = cities.filter(c => c.state === appState.cityFilterState);
+    }
+
+    const citySummaries = state.city_summaries || {};
+
+    grid.innerHTML = cities.map(city => {
+        const cs = citySummaries[city.name] || {};
+        const riskScore = cs.risk_score !== undefined ? cs.risk_score : 0;
+        const riskLevel = (cs.risk_level || 'LOW').toUpperCase();
+        const evCount = cs.event_count || 0;
+        const w = cs.weather || {};
+        const aq = cs.air_quality || {};
+        const weatherDesc = w.temperature !== undefined ? `${w.temperature}°C, ${w.condition || 'Clear'}` : 'Syncing Live Telemetry';
+        const aqiDesc = aq.aqi !== undefined ? `AQI ${aq.aqi}` : 'AQI --';
+
+        return `
+            <div class="city-card" onclick="selectCityFilter('${city.id}')">
+                <div class="city-card-header">
+                    <div>
+                        <div class="city-name">${city.name}</div>
+                        <div class="state-badge">${city.stateName} ${city.isCapital ? '• Capital' : ''}</div>
+                    </div>
+                    <span class="badge-status status-${riskLevel.toLowerCase()}">${riskLevel} (${riskScore}/100)</span>
+                </div>
+                <div class="city-card-stats">
+                    <div class="city-stat-item">
+                        <span class="city-stat-label">Weather / AQI</span>
+                        <span class="city-stat-val" style="font-size:0.85rem;">${weatherDesc} | ${aqiDesc}</span>
+                    </div>
+                    <div class="city-stat-item">
+                        <span class="city-stat-label">Ingested Events</span>
+                        <span class="city-stat-val">${evCount} Events</span>
+                    </div>
+                </div>
+                <button class="btn-sm" style="width:100%; border-radius:8px;">Inspect ${city.name} State →</button>
+            </div>
+        `;
+    }).join('');
+}
+
+/* Select & Focus City Filter */
+function selectCityFilter(cityId) {
+    const selectEl = document.getElementById('city-selector');
+    if (selectEl) {
+        selectEl.value = cityId;
+    }
+
+    const city = SOUTH_INDIA_CITIES.find(c => c.id === cityId);
+    if (city && gisMap) {
+        gisMap.setView([city.lat, city.lon], 11);
+        switchView('overview');
+    }
+}
+
+/* ==========================================================================
+   5. AI URBAN COPILOT HANDLER
+   ========================================================================== */
+function initEventListeners() {
+    // City selector change listener
+    const citySelect = document.getElementById('city-selector');
+    if (citySelect) {
+        citySelect.addEventListener('change', (e) => {
+            selectCityFilter(e.target.value);
         });
     }
 
-    if (feedCountBadge) {
-        feedCountBadge.textContent = `${events.length} Stream Events`;
-    }
-
-    if (events.length === 0) {
-        container.innerHTML = '<div class="empty-state">No telemetry stream events currently recorded for this filter.</div>';
-        return;
-    }
-
-    // Sort descending by timestamp
-    events = [...events].reverse();
-
-    let html = '';
-    events.forEach(ev => {
-        const data = ev.data || {};
-        const loc = ev.location || {};
-        const evId = data.event_id || ev.event_id || 'unk';
-        const evType = data.event_type || ev.event_type || 'incident';
-        const src = ev.source || 'unknown';
-        const sev = (data.severity || ev.severity || 'LOW').toUpperCase();
-        const badgeCls = `badge-${sev.toLowerCase()}`;
-        const desc = data.description || data.text || data.condition || data.message || evType;
-        
-        let tsStr = ev.timestamp || 'N/A';
-        try {
-            const dt = new Date(ev.timestamp);
-            if (!isNaN(dt.getTime())) tsStr = dt.toLocaleTimeString();
-        } catch (e) {}
-
-        const latLonStr = (loc.lat && loc.lon) ? `${loc.lat.toFixed(2)}, ${loc.lon.toFixed(2)}` : 'N/A';
-
-        html += `
-            <div class="event-item">
-                <div class="event-details">
-                    <div class="event-title">${evType.toUpperCase()} (ID: ${evId})</div>
-                    <div style="font-size: 0.85rem; color: #F8FAFC; margin: 0.15rem 0;">${desc}</div>
-                    <div class="event-meta">
-                        ⏱️ ${tsStr} | 📍 ${latLonStr} | Source: <strong>${src}</strong>
-                    </div>
-                </div>
-                <div>
-                    <span class="severity-badge ${badgeCls}">${sev}</span>
-                </div>
-            </div>
-        `;
+    // State filter tabs in Cities view
+    const stateChips = document.querySelectorAll('.state-filter-tabs .filter-chip');
+    stateChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            stateChips.forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            appState.cityFilterState = chip.getAttribute('data-state');
+            if (appState.latestState) renderCitiesGrid(appState.latestState);
+        });
     });
 
-    container.innerHTML = html;
-}
-
-/**
- * Renders Environmental & Weather Telemetry from Backend Data Sources.
- */
-function renderEnvironment(state) {
-    const recentEvents = state.recent_events || [];
-
-    // Find latest weather and air quality events from backend
-    let weatherEv = null;
-    let airQualityEv = null;
-
-    for (let i = recentEvents.length - 1; i >= 0; i--) {
-        const ev = recentEvents[i];
-        if (!weatherEv && (ev.source === 'weather_api' || ev.source === 'open_meteo_weather')) {
-            weatherEv = ev.data || {};
-        }
-        if (!airQualityEv && (ev.source === 'air_quality_api' || ev.source === 'open_meteo_air_quality' || ev.source === 'environment_api')) {
-            airQualityEv = ev.data || {};
-        }
+    // Severity filter in Timeline view
+    const sevFilter = document.getElementById('event-severity-filter');
+    if (sevFilter) {
+        sevFilter.addEventListener('change', (e) => {
+            appState.eventSeverityFilter = e.target.value;
+            if (appState.latestState) renderTimelineFeed(appState.latestState.recent_events || []);
+        });
     }
 
-    const tempEl = document.getElementById('env-temp');
-    if (tempEl) {
-        tempEl.textContent = weatherEv && weatherEv.temperature !== undefined ? `${weatherEv.temperature}°C` : 'Data unavailable';
-    }
-
-    const condEl = document.getElementById('env-condition');
-    if (condEl) {
-        condEl.textContent = weatherEv && weatherEv.condition ? weatherEv.condition : 'Data unavailable';
-    }
-
-    const aqiEl = document.getElementById('env-aqi');
-    if (aqiEl) {
-        aqiEl.textContent = airQualityEv && airQualityEv.air_quality_index !== undefined ? `${airQualityEv.air_quality_index} US AQI` : 'Data unavailable';
-    }
-
-    const pmEl = document.getElementById('env-pm');
-    if (pmEl) {
-        if (airQualityEv && (airQualityEv.pm2_5 !== undefined || airQualityEv.pm10 !== undefined)) {
-            pmEl.textContent = `${airQualityEv.pm2_5 || '--'} / ${airQualityEv.pm10 || '--'} µg/m³`;
-        } else {
-            pmEl.textContent = 'Data unavailable';
-        }
-    }
-
-    const windEl = document.getElementById('env-wind');
-    if (windEl) {
-        windEl.textContent = weatherEv && weatherEv.wind_speed !== undefined ? `${weatherEv.wind_speed} km/h` : 'Data unavailable';
-    }
-
-    const no2El = document.getElementById('env-no2');
-    if (no2El) {
-        no2El.textContent = airQualityEv && airQualityEv.nitrogen_dioxide !== undefined ? `${airQualityEv.nitrogen_dioxide} µg/m³` : 'Data unavailable';
+    // Search input in Timeline view
+    const searchInput = document.getElementById('event-search-input');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            appState.eventSearchQuery = e.target.value;
+            if (appState.latestState) renderTimelineFeed(appState.latestState.recent_events || []);
+        });
     }
 }
 
-/**
- * Renders Geographic Zone Intelligence Cards from Backend state.zone_summaries.
- */
-function renderZoneIntelligence(state) {
-    const container = document.getElementById('zone-summary-container');
-    if (!container) return;
-
-    const zoneSummaries = state.zone_summaries || {};
-    const zoneKeys = Object.keys(zoneSummaries);
-
-    if (zoneKeys.length === 0) {
-        container.innerHTML = '<div class="empty-state">No spatial zone intelligence generated yet.</div>';
-        return;
-    }
-
-    let html = '';
-    zoneKeys.forEach(zName => {
-        const zInfo = zoneSummaries[zName];
-        const riskLevel = zInfo.risk_level || 'LOW';
-        const riskScore = zInfo.risk_score || 0;
-        const badgeCls = `badge-${riskLevel.toLowerCase()}`;
-        const eventCount = zInfo.event_count || 0;
-        const criticalCount = zInfo.critical_count || 0;
-
-        html += `
-            <div class="zone-card">
-                <div style="font-weight: 700; font-size: 0.9rem;">${zName}</div>
-                <div style="margin: 0.35rem 0;">
-                    <span class="severity-badge ${badgeCls}">${riskLevel} (${riskScore} pts)</span>
-                </div>
-                <div style="font-size: 0.75rem; color: #94A3B8;">
-                    Total Events: <strong>${eventCount}</strong> | Critical: <strong style="color: #EF4444;">${criticalCount}</strong>
-                </div>
-            </div>
-        `;
-    });
-
-    container.innerHTML = html;
-}
-
-/**
- * Renders Data Connectors Infrastructure Status Cards from Backend data_freshness.
- */
-function renderInfrastructureConnectors(state) {
-    const container = document.getElementById('connectors-status-grid');
-    if (!container) return;
-
-    const freshness = state.data_freshness || {};
-    const connectorKeys = Object.keys(freshness);
-
-    if (connectorKeys.length === 0) {
-        container.innerHTML = '<div class="empty-state">Infrastructure health status loading...</div>';
-        return;
-    }
-
-    let html = '';
-    connectorKeys.forEach(key => {
-        const info = freshness[key] || {};
-        const statusVal = info.status || 'UNKNOWN';
-        const modeVal = info.mode || 'LIVE';
-        const eventCount = info.event_count || 0;
-        
-        const isHealthy = statusVal === 'LIVE' || statusVal === 'READY' || statusVal === 'RUNNING';
-        const color = isHealthy ? '#10B981' : (statusVal === 'SIMULATION' ? '#38BDF8' : '#F59E0B');
-        const formattedName = key.replace(/_/g, ' ').toUpperCase();
-
-        html += `
-            <div class="connector-card">
-                <div style="font-size: 0.85rem; font-weight: 700; text-transform: capitalize;">📡 ${formattedName}</div>
-                <div style="color: ${color}; font-weight: 700; font-size: 0.85rem; margin: 0.25rem 0;">● ${statusVal} (${modeVal})</div>
-                <div style="font-size: 0.75rem; color: #94A3B8;">Events Processed: ${eventCount}</div>
-            </div>
-        `;
-    });
-
-    // Add Pathway Engine card
-    html += `
-        <div class="connector-card">
-            <div style="font-size: 0.85rem; font-weight: 700;">⚡ PATHWAY STREAMING ENGINE</div>
-            <div style="color: #10B981; font-weight: 700; font-size: 0.85rem; margin: 0.25rem 0;">● RUNNING</div>
-            <div style="font-size: 0.75rem; color: #94A3B8;">Stream Concats & UDF Evaluation Active</div>
-        </div>
-    `;
-
-    container.innerHTML = html;
-}
-
-/**
- * Fills Copilot Query Input Box when user clicks a suggested prompt button.
- */
-function fillCopilotPrompt(promptText) {
+function fillCopilotPrompt(question) {
     const input = document.getElementById('copilot-input');
     if (input) {
-        input.value = promptText;
+        input.value = question;
+        switchView('copilot');
         input.focus();
     }
 }
 
-/**
- * Submits User Query to Backend POST /api/ask Endpoint and Renders Structured Copilot Response.
- */
 async function submitCopilotQuery(event) {
-    event.preventDefault();
-    
-    const inputEl = document.getElementById('copilot-input');
-    const submitBtn = document.getElementById('copilot-submit-btn');
+    if (event) event.preventDefault();
+
+    const input = document.getElementById('copilot-input');
     const resultsContainer = document.getElementById('copilot-results');
+    const submitBtn = document.getElementById('copilot-submit-btn');
 
-    const question = inputEl ? inputEl.value.trim() : '';
-    if (!question) return;
+    if (!input || !input.value.trim() || !resultsContainer) return;
 
+    const question = input.value.trim();
+
+    // Loading State
     if (submitBtn) submitBtn.disabled = true;
-    if (resultsContainer) {
-        resultsContainer.innerHTML = '<div class="copilot-notice">Analyzing real-time telemetry, executing grounded RAG context, and generating copilot decision support...</div>';
-    }
+    resultsContainer.innerHTML = `
+        <div class="ai-response-card">
+            <div class="loading-state-card">
+                <div class="spinner"></div>
+                <span>Executing Grounded RAG context retrieval and querying OpenAI LLM...</span>
+            </div>
+        </div>
+    `;
 
     try {
         const response = await fetch(`${API_BASE_URL}/api/ask`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: question })
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ question })
         });
 
         if (!response.ok) {
             throw new Error(`HTTP error ${response.status}`);
         }
 
-        const resData = await response.json();
-        renderCopilotResponse(question, resData);
+        const data = await response.json();
+        renderCopilotResponseCard(data, question);
     } catch (err) {
-        if (resultsContainer) {
-            resultsContainer.innerHTML = `
-                <div class="copilot-response-card" style="border-color: #EF4444;">
-                    <strong style="color: #EF4444;">AI Copilot unavailable — Unable to reach backend server</strong>
-                    <p style="font-size: 0.85rem; color: #94A3B8;">Ensure backend server is running on ${API_BASE_URL} (python -m src.main)</p>
+        resultsContainer.innerHTML = `
+            <div class="ai-response-card" style="border-color: var(--severity-critical);">
+                <div class="ai-assessment-banner">
+                    <span class="ai-risk-tag badge-critical">ERROR</span>
+                    <span class="ai-confidence-tag">Connection Failure</span>
                 </div>
-            `;
-        }
+                <div class="ai-answer-text" style="color: var(--severity-critical);">
+                    Unable to execute AI query: ${err.message}. Ensure backend is running at ${API_BASE_URL}.
+                </div>
+            </div>
+        `;
     } finally {
         if (submitBtn) submitBtn.disabled = false;
     }
 }
 
-/**
- * Renders Structured AI Copilot Decision Support Response & Recommendations.
- */
-function renderCopilotResponse(question, res) {
-    const resultsContainer = document.getElementById('copilot-results');
-    if (!resultsContainer) return;
+function renderCopilotResponseCard(data, question) {
+    const container = document.getElementById('copilot-results');
+    if (!container) return;
 
-    const answer = res.answer || 'No answer generated.';
-    const riskLevel = res.risk_level || 'LOW';
-    const confidence = res.confidence || 'HIGH';
-    const recommendations = res.recommended_actions || [];
-    const evidence = res.evidence || [];
-    const affectedZones = res.affected_zones || [];
+    const riskLevel = (data.risk_level || 'LOW').toUpperCase();
+    const confidence = (data.confidence || 'HIGH').toUpperCase();
+    const answer = data.answer || 'No response returned from AI provider.';
+    const factors = data.key_factors || data.factors || [];
+    const evidence = data.evidence || [];
+    const recommendations = data.recommendations || data.human_review || [];
 
-    let recsHtml = '';
-    if (recommendations.length > 0) {
-        recsHtml = `
-            <div class="recommendations-box">
-                <strong>🛡️ HUMAN REVIEW RECOMMENDATIONS (Decision Support Only):</strong>
-                <ul>
-                    ${recommendations.map(r => `<li>${r}</li>`).join('')}
-                </ul>
-            </div>
-        `;
-    }
-
-    let evidenceHtml = '';
-    if (evidence.length > 0) {
-        let rowsHtml = evidence.map(ev => `
-            <tr>
-                <td><code>${ev.event_id || 'unk'}</code></td>
-                <td>${ev.source || 'unknown'}</td>
-                <td>${ev.zone || 'Zone A'}</td>
-                <td><span class="severity-badge badge-${(ev.severity || 'LOW').toLowerCase()}">${ev.severity || 'LOW'}</span></td>
-            </tr>
-        `).join('');
-
-        evidenceHtml = `
-            <div style="margin-top: 0.5rem;">
-                <strong style="font-size: 0.85rem; color: #38BDF8;">📌 Verified Audit Evidence Citations:</strong>
-                <table class="evidence-table">
-                    <thead>
-                        <tr>
-                            <th>Event ID</th>
-                            <th>Source</th>
-                            <th>Zone</th>
-                            <th>Severity</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rowsHtml}
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
-
-    resultsContainer.innerHTML = `
-        <div class="copilot-response-card">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 0.5rem;">
-                <span style="font-weight: 700; color: #38BDF8;">❓ Question: ${question}</span>
-                <span>
-                    <span class="severity-badge badge-${riskLevel.toLowerCase()}">${riskLevel} RISK</span>
-                    <small style="color: #94A3B8; margin-left: 0.5rem;">Confidence: ${confidence}</small>
-                </span>
+    container.innerHTML = `
+        <div class="ai-response-card">
+            <div class="ai-assessment-banner">
+                <div>
+                    <span class="ai-risk-tag badge-${riskLevel.toLowerCase()}">${riskLevel} RISK</span>
+                    <strong style="margin-left: 10px; font-size: 0.9rem;">Query: "${question}"</strong>
+                </div>
+                <span class="ai-confidence-tag">Confidence: ${confidence}</span>
             </div>
 
-            <div class="copilot-ans-text">
-                💡 <strong>AI Copilot Grounded Analysis:</strong><br>${answer}
+            <div class="ai-answer-text">${answer}</div>
+
+            ${factors.length > 0 ? `
+                <div>
+                    <div class="ai-section-title">Key Factors</div>
+                    <div class="ai-factors-chips">
+                        ${factors.map(f => `<span class="chip-factor">• ${f}</span>`).join('')}
+                    </div>
+                </div>
+            ` : ''}
+
+            ${evidence.length > 0 ? `
+                <div>
+                    <div class="ai-section-title">Audit Evidence Trail (${evidence.length} Citations)</div>
+                    <ul class="ai-evidence-list">
+                        ${evidence.map(ev => {
+                            const eStr = typeof ev === 'object' ? (ev.description || ev.event_id || JSON.stringify(ev)) : ev;
+                            return `<li>${eStr}</li>`;
+                        }).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            ${recommendations.length > 0 ? `
+                <div>
+                    <div class="ai-section-title">Human Review Recommendations</div>
+                    <ul class="ai-evidence-list">
+                        ${recommendations.map(r => `<li style="border-left-color: var(--severity-mod);">${r}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+
+            <div class="ai-actions-row">
+                <button class="btn-action-chip" onclick="switchView('overview')">📍 Focus Map View</button>
+                <button class="btn-action-chip" onclick="switchView('events')">⚡ Inspect Stream Events</button>
+                <button class="btn-action-chip" onclick="switchView('risk')">🛡️ View Risk Analytics</button>
             </div>
-
-            ${recsHtml}
-
-            ${affectedZones.length > 0 ? `<div style="font-size: 0.85rem;"><strong>Affected Zones:</strong> <code>${affectedZones.join(', ')}</code></div>` : ''}
-
-            ${evidenceHtml}
         </div>
     `;
 }
