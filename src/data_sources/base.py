@@ -5,10 +5,43 @@ from typing import Dict, Any, List
 
 try:
     import pathway as pw
+    try:
+        from pathway.io.python import ConnectorSubject as _PathwayConnectorSubject
+    except ImportError:
+        _PathwayConnectorSubject = getattr(pw, "ConnectorSubject", object)
 except ImportError:
     from ..pathway_compat import pw
+    _PathwayConnectorSubject = getattr(pw, "ConnectorSubject", object)
 
 logger = logging.getLogger(__name__)
+
+class GeneratorConnectorSubject(_PathwayConnectorSubject):
+    """
+    Pathway ConnectorSubject adapter that wraps a Python generator function
+    and streams events into Pathway via self.next(**payload).
+    Compatible with native Pathway 0.33.0+ and pathway_compat fallback layer.
+    """
+    def __init__(self, generator_fn, source_instance=None):
+        try:
+            super().__init__()
+        except Exception:
+            pass
+        self.generator_fn = generator_fn
+        self.source = source_instance
+
+    def run(self):
+        try:
+            for event in self.generator_fn():
+                if isinstance(event, dict):
+                    payload = {
+                        "timestamp": str(event.get("timestamp", "")),
+                        "source": str(event.get("source", "")),
+                        "data": event.get("data", {}),
+                        "location": event.get("location", {})
+                    }
+                    self.next(**payload)
+        except Exception as e:
+            logger.error(f"[ConnectorSubject] Stream generator error: {e}")
 
 class DataSource(ABC):
     name: str = "base"
@@ -23,9 +56,10 @@ class DataSource(ABC):
     def _define_schema(self):
         pass
     
-    @abstractmethod
     def get_stream(self):
-        pass
+        subject = GeneratorConnectorSubject(getattr(self, "_stream"), source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
+
 
 class DataSourceManager:
     def __init__(self, config: Dict[str, Any]):

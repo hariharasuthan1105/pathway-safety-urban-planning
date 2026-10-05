@@ -10,7 +10,7 @@ import logging
 import requests
 import queue
 from typing import Dict, Any, Optional
-from .base import DataSource
+from .base import DataSource, GeneratorConnectorSubject
 from .models import create_city_event
 
 try:
@@ -69,7 +69,8 @@ class WeatherSource(DataSource):
         return EventSchema
 
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
 
     def _stream(self):
         while True:
@@ -130,7 +131,8 @@ class AirQualitySource(DataSource):
         return EventSchema
 
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
 
     def _stream(self):
         while True:
@@ -191,7 +193,8 @@ class GTFSTransitSource(DataSource):
         return EventSchema
 
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
 
     def _stream(self):
         if not self.feed_url:
@@ -239,7 +242,8 @@ class WebhookSource(DataSource):
         return EventSchema
 
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
 
     def _stream(self):
         logger.info("[Webhook Ingestion] Ready to receive POST events via WEBHOOK_EVENT_QUEUE.")
@@ -285,9 +289,11 @@ def ingest_webhook_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     pushed = False
     try:
         from ..pathway_compat import _ACTIVE_STREAMS
-        for stream in list(_ACTIVE_STREAMS):
-            if getattr(stream.generator, '__name__', '') == '_stream' and isinstance(getattr(stream.generator, '__self__', None), WebhookSource):
-                stream.publish(event)
+        for item in list(_ACTIVE_STREAMS):
+            tbl = item[0] if isinstance(item, tuple) else item
+            subject = item[1] if isinstance(item, tuple) else getattr(tbl, "generator", None)
+            if subject and getattr(subject, "source", None) and isinstance(subject.source, WebhookSource):
+                tbl.publish(event)
                 pushed = True
     except Exception as e:
         logger.debug(f"Pathway stream direct publish fallback: {e}")
@@ -303,4 +309,5 @@ def ingest_webhook_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             pass
 
     return event
+
 

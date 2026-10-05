@@ -14,9 +14,10 @@ import random
 import logging
 from typing import Dict, Any, List, Optional
 
-from .base import DataSource
+from .base import DataSource, GeneratorConnectorSubject
 from .real_sources import SOUTH_INDIA_CITIES, EventSchema
 from .models import create_city_event
+
 
 try:
     import pathway as pw
@@ -145,7 +146,10 @@ class TrafficSimulationSource(DataSource):
         return EventSchema
 
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
+
+
 
     def _calculate_ist_peak_factor(self) -> float:
         """Calculates IST time-of-day traffic demand multiplier (AM & PM peak hour curves)."""

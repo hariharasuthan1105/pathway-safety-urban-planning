@@ -177,16 +177,35 @@ except ImportError:
                     combined.publish(row)
             return combined
 
-        @classmethod
-        def concat_by_name(cls, *tables: 'Table') -> 'Table':
-            return cls.concat(list(tables))
+    class ConnectorSubject:
+        def __init__(self, *args, **kwargs):
+            self._table: Optional['Table'] = None
+
+        def run(self):
+            pass
+
+        def next(self, **kwargs):
+            if self._table:
+                self._table.publish(kwargs)
 
     class PythonIO:
+        ConnectorSubject = ConnectorSubject
+
         @staticmethod
-        def read(subject: Callable, schema: Any = None) -> Table:
-            t = Table(generator=subject, schema=schema)
-            _ACTIVE_STREAMS.append(t)
-            return t
+        def read(subject: Any, schema: Any = None) -> Table:
+            if isinstance(subject, ConnectorSubject):
+                t = Table(generator=None, schema=schema)
+                subject._table = t
+                _ACTIVE_STREAMS.append((t, subject))
+                return t
+            elif callable(subject):
+                t = Table(generator=subject, schema=schema)
+                _ACTIVE_STREAMS.append((t, None))
+                return t
+            else:
+                t = Table(generator=subject, schema=schema)
+                _ACTIVE_STREAMS.append((t, None))
+                return t
 
     class CSVIO:
         @staticmethod
@@ -215,14 +234,28 @@ except ImportError:
 
     def _run_streaming_engine():
         logger.info("Pathway streaming engine starting background worker threads...")
-        for table in list(_ACTIVE_STREAMS):
-            if table.generator:
-                def worker(tbl=table):
+        for item in list(_ACTIVE_STREAMS):
+            if isinstance(item, tuple):
+                tbl, subject = item
+            else:
+                tbl, subject = item, None
+
+            if subject is not None:
+                def connector_worker(sub=subject):
                     try:
-                        gen = tbl.generator()
+                        sub.run()
+                    except Exception as e:
+                        logger.warning(f"Error in connector subject thread: {e}")
+
+                th = threading.Thread(target=connector_worker, daemon=True)
+                th.start()
+            elif tbl and tbl.generator:
+                def worker(t=tbl):
+                    try:
+                        gen = t.generator()
                         for row in gen:
                             if isinstance(row, dict):
-                                tbl.publish(row)
+                                t.publish(row)
                     except Exception as e:
                         logger.warning(f"Error in stream generator thread: {e}")
 
@@ -237,6 +270,7 @@ except ImportError:
         Schema = Schema
         Json = Json
         Table = Table
+        ConnectorSubject = ConnectorSubject
         io = IO()
         udf = staticmethod(udf)
         this = this
@@ -249,3 +283,4 @@ except ImportError:
             return Schema
 
     pw = CompatibilityPathway()
+

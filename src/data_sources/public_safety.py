@@ -8,7 +8,7 @@ try:
 except ImportError:
     from ..pathway_compat import pw
 
-from .base import DataSource
+from .base import DataSource, GeneratorConnectorSubject
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,8 @@ class SocialMediaSource(DataSource):
         return EventSchema
     
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
     
     def _stream(self):
         keywords = self.config.get('data_sources', {}).get('social_media', {}).get('keywords', ['fire', 'accident', 'protest', 'emergency'])
@@ -54,7 +55,8 @@ class PublicSafetySource(DataSource):
         return EventSchema
     
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
     
     def _stream(self):
         while True:
@@ -81,7 +83,9 @@ class IoTSensorSource(DataSource):
         return EventSchema
     
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
+
     
     def _stream(self):
         sim_rate = self.config.get('data_sources', {}).get('iot_sensors', {}).get('simulation_rate', 0.5)

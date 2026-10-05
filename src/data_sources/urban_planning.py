@@ -8,7 +8,7 @@ try:
 except ImportError:
     from ..pathway_compat import pw
 
-from .base import DataSource
+from .base import DataSource, GeneratorConnectorSubject
 from .public_safety import EventSchema
 
 logger = logging.getLogger(__name__)
@@ -20,29 +20,8 @@ class TransitSource(DataSource):
         return EventSchema
     
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
-    
-    def _stream(self):
-        while True:
-            transit_data = {
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                "source": "transit_api",
-                "data": {
-                    "route_id": f"M{random.randint(1, 9)}",
-                    "delay": round(random.uniform(0, 15) if random.random() > 0.2 else random.uniform(15, 45), 1),
-                    "passenger_count": random.randint(10, 200),
-                    "vehicle_location": {
-                        "lat": round(random.uniform(40.7, 40.8), 4),
-                        "lon": round(random.uniform(-74.0, -73.9), 4)
-                    }
-                },
-                "location": {
-                    "lat": round(random.uniform(40.7, 40.8), 4),
-                    "lon": round(random.uniform(-74.0, -73.9), 4)
-                }
-            }
-            yield transit_data
-            time.sleep(3)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
 
 class TrafficSource(DataSource):
     name = "traffic"
@@ -51,25 +30,8 @@ class TrafficSource(DataSource):
         return EventSchema
     
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
-    
-    def _stream(self):
-        while True:
-            traffic_data = {
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                "source": "traffic_api",
-                "data": {
-                    "congestion_level": round(random.uniform(0.1, 0.9), 2),
-                    "average_speed": round(random.uniform(10, 40), 1),
-                    "incident_count": random.randint(0, 5)
-                },
-                "location": {
-                    "lat": round(random.uniform(40.7, 40.8), 4),
-                    "lon": round(random.uniform(-74.0, -73.9), 4)
-                }
-            }
-            yield traffic_data
-            time.sleep(2)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
 
 class EnvironmentSource(DataSource):
     name = "environment"
@@ -78,7 +40,9 @@ class EnvironmentSource(DataSource):
         return EventSchema
     
     def get_stream(self):
-        return pw.io.python.read(self._stream, schema=self.schema)
+        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
+        return pw.io.python.read(subject, schema=self.schema)
+
     
     def _stream(self):
         while True:
