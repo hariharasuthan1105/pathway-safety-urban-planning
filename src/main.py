@@ -28,7 +28,6 @@ except ImportError:
 
 from src.data_sources import DataSourceManager
 from src.processing import AnomalyDetector, RAGSystem, CityStateManager, get_shared_city_state_manager, get_shared_rag_system, ingest_runtime_event
-from src.app import Dashboard
 from src.webhook_server import start_webhook_server, register_ai_query_handler
 
 def combine_pathway_streams(streams: list) -> pw.Table:
@@ -185,17 +184,21 @@ def main():
     pw.io.csv.write(anomalies_table, "anomalies.csv")
     pw.io.json.write(processed_table, "processed_data.json")
     
-    # Start dashboard and keep backend streaming engine active
-    logger.info("Frontend/API starting...")
-    dashboard = Dashboard(processed_table, anomalies_table, rag_system, config, city_state_manager=city_state_manager)
-    dashboard.run()
+    # Start dashboard (if Streamlit is available) and keep backend streaming engine active
+    logger.info(f"Backend API server active on http://{args.host}:{webhook_port}")
+    try:
+        from src.app import Dashboard
+        dashboard = Dashboard(processed_table, anomalies_table, rag_system, config, city_state_manager=city_state_manager)
+        dashboard.run()
+    except Exception as e:
+        logger.info("Running in headless production API mode (Streamlit UI skipped).")
 
-    logger.info(f"Server listening for events on http://{args.host}:{webhook_port} ...")
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         logger.info("Application shutdown completed cleanly.")
+
 
 if __name__ == "__main__":
     main()
