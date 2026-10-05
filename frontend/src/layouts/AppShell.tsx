@@ -38,8 +38,8 @@ export const AppShell: React.FC = () => {
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <span className="font-bold text-base tracking-tight text-white block">SOUTH INDIA</span>
-            <span className="text-[10px] font-bold tracking-widest text-blue-400 uppercase block -mt-1">Urban Intelligence</span>
+            <span className="font-bold text-base tracking-tight text-white block">URBAN INTELLIGENCE</span>
+            <span className="text-[10px] font-semibold tracking-widest text-blue-400 uppercase block -mt-1">South India Command Center</span>
           </div>
         </div>
 
@@ -99,13 +99,16 @@ export const AppShell: React.FC = () => {
             })}
           </nav>
 
-          <div className="p-3 rounded-2xl glass-surface text-xs text-slate-400 space-y-2">
+          <div className="p-3.5 rounded-2xl glass-surface text-xs text-slate-400 space-y-2">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-white">20 Nodes Active</span>
+              <span className="font-semibold text-white">20 Cities</span>
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">HYBRID</span>
             </div>
-            <p className="text-[11px] leading-relaxed text-slate-400">
-              Tamil Nadu (8) • Kerala (6) • Andhra Pradesh (6)
+            <p className="text-[11px] font-medium text-slate-300">
+              Tamil Nadu • Kerala • Andhra Pradesh
+            </p>
+            <p className="text-[10px] leading-relaxed text-slate-400 pt-1 border-t border-slate-800/60">
+              Currently operating across 20 cities in South India.
             </p>
           </div>
         </aside>

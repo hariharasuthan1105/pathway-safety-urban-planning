@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Activity, Cpu, ArrowRight, Zap, Globe } from 'lucide-react';
+import { ShieldCheck, Activity, Cpu, ArrowRight, Zap, Globe, Building2 } from 'lucide-react';
 import { Button } from '../components/ui/Button';
 
 export const Landing: React.FC = () => {
@@ -13,8 +13,8 @@ export const Landing: React.FC = () => {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <div>
-            <span className="font-bold text-lg tracking-tight text-white block">SOUTH INDIA</span>
-            <span className="text-[11px] font-bold tracking-widest text-blue-400 uppercase block -mt-1">Urban Intelligence</span>
+            <span className="font-bold text-lg tracking-tight text-white block">URBAN INTELLIGENCE</span>
+            <span className="text-[11px] font-semibold tracking-widest text-blue-400 uppercase block -mt-1">South India Platform</span>
           </div>
         </div>
 
@@ -32,15 +32,15 @@ export const Landing: React.FC = () => {
       <section className="relative px-6 md:px-12 py-20 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
         <div className="space-y-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold tracking-wider uppercase">
-            <span>SOUTH INDIA / URBAN INTELLIGENCE</span>
+            <span>SOUTH INDIA COVERAGE</span>
           </div>
 
           <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.1]">
-            Real-time intelligence for a changing city.
+            Urban Intelligence for South India
           </h1>
 
           <p className="text-slate-400 text-base md:text-lg leading-relaxed max-w-xl">
-            Monitor urban conditions, understand emerging risks, and ask AI what matters now across Tamil Nadu, Kerala, and Andhra Pradesh.
+            Real-time urban intelligence for safer, smarter and more resilient cities.
           </p>
 
           <div className="flex flex-wrap items-center gap-4 pt-2">
@@ -57,17 +57,25 @@ export const Landing: React.FC = () => {
             </Link>
           </div>
 
-          <p className="text-xs text-slate-500 pt-4">
-            Operational visibility across Tamil Nadu, Kerala, and Andhra Pradesh (20 configured cities).
-          </p>
+          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2 max-w-xl">
+            <div className="flex items-center justify-between text-xs font-bold text-white">
+              <span className="flex items-center gap-1.5 text-blue-400">
+                <Building2 className="w-4 h-4" /> 20 Cities
+              </span>
+              <span className="text-slate-400 font-medium">Tamil Nadu • Kerala • Andhra Pradesh</span>
+            </div>
+            <p className="text-xs text-slate-400">
+              Currently operating across 20 cities in South India.
+            </p>
+          </div>
         </div>
 
-        {/* Decorative Visual Card (No operational numbers) */}
+        {/* Decorative Visual Card */}
         <div className="relative rounded-3xl glass-surface p-8 border border-slate-800 space-y-6 shadow-2xl">
           <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
             <div className="flex items-center gap-2">
               <span className="w-3 h-3 rounded-full bg-blue-500 animate-ping" />
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Regional Network Grid</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Regional Deployment</span>
             </div>
             <span className="text-xs text-blue-400 font-mono">TN • KL • AP</span>
           </div>

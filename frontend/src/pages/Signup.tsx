@@ -16,8 +16,8 @@ export const Signup: React.FC = () => {
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">SOUTH INDIA</h1>
-              <p className="text-xs font-semibold tracking-widest text-blue-400 uppercase">Urban Intelligence Platform</p>
+              <h1 className="text-xl font-bold tracking-tight text-white">URBAN INTELLIGENCE</h1>
+              <p className="text-xs font-semibold tracking-widest text-blue-400 uppercase">South India Command Center</p>
             </div>
           </div>
 
@@ -26,7 +26,7 @@ export const Signup: React.FC = () => {
               Enterprise Access Request
             </h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Create an operator account to monitor live public safety, environmental metrics, and AI decision support across Tamil Nadu, Kerala, and Andhra Pradesh.
+              Real-time urban intelligence for safer, smarter and more resilient cities. Currently operating across 20 cities in South India.
             </p>
           </div>
         </div>
@@ -38,7 +38,7 @@ export const Signup: React.FC = () => {
           </div>
           <div className="flex items-center gap-2">
             <Globe className="w-4 h-4 text-blue-400" />
-            <span>20 South Indian Metropolitan Regions Supported</span>
+            <span>Currently operating across 20 cities in South India</span>
           </div>
         </div>
       </div>

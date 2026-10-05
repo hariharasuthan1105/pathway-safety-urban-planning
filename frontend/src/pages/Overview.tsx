@@ -24,14 +24,14 @@ export const Overview: React.FC = () => {
           <h1 className="text-2xl font-bold text-white tracking-tight">
             Good morning, {user?.full_name || 'Operator'}
           </h1>
-          <p className="text-sm text-slate-400">
-            Real-time urban operations dashboard across Tamil Nadu, Kerala, and Andhra Pradesh.
+          <p className="text-sm text-slate-400 mt-1">
+            Urban Intelligence • South India Command Center. Currently operating across 20 cities in South India.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           <Badge variant="blue">MODE: {state?.meta?.mode || 'HYBRID'}</Badge>
-          <Badge variant="neutral">20 Configured Cities</Badge>
+          <Badge variant="neutral">20 Cities (TN • KL • AP)</Badge>
         </div>
       </div>
 
@@ -81,11 +81,11 @@ export const Overview: React.FC = () => {
 
         <Card className="p-5 space-y-2">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-xs font-semibold uppercase tracking-wider">Cities Online</span>
+            <span className="text-xs font-semibold uppercase tracking-wider">Coverage</span>
             <Building className="w-4 h-4 text-purple-400" />
           </div>
           <p className="text-3xl font-extrabold text-white tabular-nums">
-            {state?.region?.cities_online ?? 20}
+            20 Cities
           </p>
           <span className="text-xs text-purple-400 font-medium">TN • KL • AP Nodes</span>
         </Card>

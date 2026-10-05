@@ -16,17 +16,17 @@ export const Login: React.FC = () => {
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight text-white">SOUTH INDIA</h1>
-              <p className="text-xs font-semibold tracking-widest text-blue-400 uppercase">Urban Intelligence Platform</p>
+              <h1 className="text-xl font-bold tracking-tight text-white">URBAN INTELLIGENCE</h1>
+              <p className="text-xs font-semibold tracking-widest text-blue-400 uppercase">South India Command Center</p>
             </div>
           </div>
 
           <div className="space-y-4 max-w-md pt-12">
             <h2 className="text-3xl font-extrabold text-white leading-tight">
-              Real-time intelligence for a changing city.
+              Urban Intelligence for South India
             </h2>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Operational decision support powered by Pathway streaming engine, Open-Meteo REST telemetry, and Grounded RAG AI across Tamil Nadu, Kerala, and Andhra Pradesh.
+              Real-time urban intelligence for safer, smarter and more resilient cities. Currently operating across 20 cities in South India.
             </p>
           </div>
         </div>

@@ -81,7 +81,7 @@ export const Cities: React.FC = () => {
             City Telemetry & Regional Coverage
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Real-time urban telemetry monitoring across 20 configured smart-city nodes.
+            Currently operating across 20 cities in South India (Tamil Nadu, Kerala, and Andhra Pradesh).
           </p>
         </div>
 
