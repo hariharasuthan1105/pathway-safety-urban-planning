@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-0: #070B14;
+    --bg-1: #0C1220;
+    --bg-2: #121A2B;
+    --bg-card: rgba(18, 26, 43, 0.75);
+
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-accent: rgba(59, 130, 246, 0.3);
+
+    --text-primary: #F5F7FA;
+    --text-secondary: #A7B0C0;
+    --text-tertiary: #6B7588;
+
+    --brand-blue: #3B82F6;
+    --brand-blue-accent: #2F6BFF;
+    --ai-purple: #8B5CF6;
+    --ai-violet: #7C7CFF;
+
+    --risk-low: #22C55E;
+    --risk-mod: #F5B301;
+    --risk-high: #F97316;
+    --risk-critical: #EF4444;
+  }
+
+  body {
+    background-color: var(--bg-0);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, system-ui, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "tnum";
+    overflow-x: hidden;
+    margin: 0;
+  }
+}
+
+/* Glassmorphism Surface Primitives */
+.glass-surface {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-subtle);
+}
+
+.glass-nav {
+  background: rgba(12, 18, 32, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-0);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Tabular Numerals for Metrics */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Leaflet Spatial Map Dark Theme Filter */
+.spatial-map-container .leaflet-tile {
+  filter: brightness(0.65) invert(100%) contrast(1.6) hue-rotate(190deg) saturate(0.4);
+}
+.spatial-map-container .leaflet-container {
+  background-color: #070B14 !important;
+}
+.spatial-map-container .leaflet-control-attribution {
+  background: rgba(12, 18, 32, 0.85) !important;
+  color: var(--text-secondary) !important;
+  font-size: 0.7rem;
+  border-radius: 4px;
+}
+.spatial-map-container .leaflet-control-attribution a {
+  color: var(--brand-blue) !important;
+}

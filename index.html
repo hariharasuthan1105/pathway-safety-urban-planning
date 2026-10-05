@@ -143,7 +143,7 @@
                         </div>
                         <div class="hero-metric">
                             <span class="hero-metric-label">Regional Nodes</span>
-                            <span class="hero-metric-val">15 Cities</span>
+                            <span class="hero-metric-val">20 Cities</span>
                         </div>
                     </div>
                 </div>
@@ -160,7 +160,7 @@
                         <canvas id="city-3d-canvas"></canvas>
                     </div>
                     <div class="hero-3d-overlay">
-                        <span id="3d-risk-indicator" class="risk-badge-3d badge-low">Live Illumination: Synchronized</span>
+                        <span id="3d-risk-indicator" class="risk-badge-3d badge-critical">BACKEND STATE UNAVAILABLE / DISCONNECTED</span>
                     </div>
                 </div>
             </section>
@@ -177,8 +177,8 @@
                         <div class="kpi-denom">/100</div>
                     </div>
                     <div class="kpi-footer">
-                        <span id="kpi-risk-badge" class="badge-status status-low">Loading live state...</span>
-                        <span id="kpi-risk-trend" class="kpi-subtext">Trend: STABLE</span>
+                        <span id="kpi-risk-badge" class="badge-status status-critical">OFFLINE</span>
+                        <span id="kpi-risk-trend" class="kpi-subtext">Trend: UNAVAILABLE</span>
                     </div>
                 </div>
 
@@ -227,10 +227,10 @@
                         <span class="kpi-icon">🏙️</span>
                     </div>
                     <div class="kpi-body">
-                        <div id="kpi-cities-online" class="kpi-big-num">15</div>
+                        <div id="kpi-cities-online" class="kpi-big-num">20</div>
                     </div>
                     <div class="kpi-footer">
-                        <span class="kpi-subtext text-blue">TN • KL • AP Nodes</span>
+                        <span class="kpi-subtext text-blue">20 Configured Cities</span>
                     </div>
                 </div>
 
@@ -240,10 +240,10 @@
                         <span class="kpi-icon">⚙️</span>
                     </div>
                     <div class="kpi-body">
-                        <div id="kpi-system-health" class="kpi-big-num text-emerald" style="font-size: 1.6rem;">CHECKING</div>
+                        <div id="kpi-system-health" class="kpi-big-num text-rose" style="font-size: 1.6rem;">OFFLINE</div>
                     </div>
                     <div class="kpi-footer">
-                        <span id="kpi-health-subtext" class="kpi-subtext text-emerald">Pathway Engine Operational</span>
+                        <span id="kpi-health-subtext" class="kpi-subtext text-rose">Backend Unreachable</span>
                     </div>
                 </div>
             </section>
@@ -258,7 +258,7 @@
                             <span class="panel-tag">Tamil Nadu • Kerala • Andhra Pradesh</span>
                         </div>
                         <div class="panel-controls">
-                            <span id="map-region-status" class="status-indicator-tag">15 Cities Online</span>
+                            <span id="map-region-status" class="status-indicator-tag">Regional Coverage: 20 cities</span>
                         </div>
                     </div>
                     <div id="gis-map" class="spatial-map-container"></div>
@@ -310,7 +310,7 @@
 
             <!-- State Filter Tabs -->
             <div class="state-filter-tabs">
-                <button class="filter-chip active" data-state="all">All States (15 Cities)</button>
+                <button class="filter-chip active" data-state="all">All States (20 Cities)</button>
                 <button class="filter-chip" data-state="tn">Tamil Nadu (8)</button>
                 <button class="filter-chip" data-state="kl">Kerala (6)</button>
                 <button class="filter-chip" data-state="ap">Andhra Pradesh (6)</button>

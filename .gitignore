@@ -43,5 +43,10 @@ Thumbs.db
 # Project specific
 *.csv
 *.json
+*.db
 data/
 logs/
+frontend/node_modules/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/

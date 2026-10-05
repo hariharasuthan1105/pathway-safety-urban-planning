@@ -1443,3 +1443,25 @@ html, body {
         display: none;
     }
 }
+
+/* OpenStreetMap Leaflet Spatial Map Dark Theme Filter */
+.spatial-map-container .leaflet-tile {
+    filter: brightness(0.65) invert(100%) contrast(1.6) hue-rotate(190deg) saturate(0.4);
+}
+.spatial-map-container .leaflet-container {
+    background-color: #04070D !important;
+}
+.spatial-map-container .leaflet-control-attribution {
+    background: rgba(15, 23, 42, 0.85) !important;
+    color: var(--text-muted) !important;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+.spatial-map-container .leaflet-control-attribution a {
+    color: var(--accent-blue) !important;
+    text-decoration: none;
+}
+.spatial-map-container .leaflet-control-attribution a:hover {
+    text-decoration: underline;
+}

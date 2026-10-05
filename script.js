@@ -133,13 +133,13 @@ function initLeafletMap() {
     // Center of South India (Tamil Nadu, Kerala, Andhra Pradesh)
     gisMap = L.map('gis-map', {
         zoomControl: true,
-        attributionControl: false
+        attributionControl: true
     }).setView([11.5, 78.5], 7);
 
-    // CartoDB Dark Matter Tiles for Bloomberg-style dark aesthetic
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 18,
-        subdomains: 'abcd'
+    // Standard OpenStreetMap tile provider (No CARTO API key required, zero watermark)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors'
     }).addTo(gisMap);
 
     eventMarkersGroup = L.layerGroup().addTo(gisMap);
@@ -393,6 +393,20 @@ function setConnectionStatus(connected, stateData = null) {
     const errorBanner = document.getElementById('connection-error-banner');
     const lastUpdatedText = document.getElementById('last-updated-text');
     const heroPipelineStatus = document.getElementById('hero-pipeline-status');
+    const heroDataMode = document.getElementById('hero-data-mode');
+
+    // KPI & Status Elements
+    const riskScoreEl = document.getElementById('kpi-risk-score');
+    const riskBadgeEl = document.getElementById('kpi-risk-badge');
+    const riskTrendEl = document.getElementById('kpi-risk-trend');
+    const eventsCountEl = document.getElementById('kpi-events-count');
+    const anomaliesCountEl = document.getElementById('kpi-anomalies-count');
+    const correlationsCountEl = document.getElementById('kpi-correlations-count');
+    const systemHealthEl = document.getElementById('kpi-system-health');
+    const healthSubtextEl = document.getElementById('kpi-health-subtext');
+    const indicator3D = document.getElementById('3d-risk-indicator');
+    const mapRegionStatus = document.getElementById('map-region-status');
+    const citiesOnlineEl = document.getElementById('kpi-cities-online');
 
     if (connected) {
         appState.isConnected = true;
@@ -407,8 +421,6 @@ function setConnectionStatus(connected, stateData = null) {
         if (stateData) {
             const dataMode = (stateData.data_mode || 'HYBRID').toUpperCase();
             if (modeBadge) modeBadge.textContent = `DATA_MODE: ${dataMode}`;
-
-            const heroDataMode = document.getElementById('hero-data-mode');
             if (heroDataMode) heroDataMode.textContent = dataMode;
 
             if (heroPipelineStatus) {
@@ -420,6 +432,21 @@ function setConnectionStatus(connected, stateData = null) {
                 const dt = new Date(stateData.last_updated);
                 const timeStr = isNaN(dt.getTime()) ? stateData.last_updated : dt.toLocaleTimeString();
                 lastUpdatedText.textContent = `Updated: ${timeStr}`;
+            }
+
+            if (systemHealthEl) {
+                systemHealthEl.textContent = 'OPERATIONAL';
+                systemHealthEl.className = 'kpi-big-num text-emerald';
+            }
+            if (healthSubtextEl) {
+                healthSubtextEl.textContent = 'Pathway Engine Operational';
+                healthSubtextEl.className = 'kpi-subtext text-emerald';
+            }
+            if (mapRegionStatus) {
+                mapRegionStatus.textContent = 'Regional Coverage: 20 cities';
+            }
+            if (citiesOnlineEl) {
+                citiesOnlineEl.textContent = '20';
             }
         }
     } else {
@@ -437,6 +464,55 @@ function setConnectionStatus(connected, stateData = null) {
         if (heroPipelineStatus) {
             heroPipelineStatus.textContent = 'DISCONNECTED';
             heroPipelineStatus.className = 'hero-metric-val text-rose';
+        }
+        if (heroDataMode) {
+            heroDataMode.textContent = 'OFFLINE';
+        }
+
+        // When GET /api/state fails: reset operational values to offline placeholders
+        if (riskScoreEl) riskScoreEl.textContent = '--';
+        if (riskBadgeEl) {
+            riskBadgeEl.textContent = 'OFFLINE';
+            riskBadgeEl.className = 'badge-status status-critical';
+        }
+        if (riskTrendEl) riskTrendEl.textContent = 'Trend: UNAVAILABLE';
+        if (eventsCountEl) eventsCountEl.textContent = '--';
+        if (anomaliesCountEl) anomaliesCountEl.textContent = '--';
+        if (correlationsCountEl) correlationsCountEl.textContent = '--';
+
+        if (systemHealthEl) {
+            systemHealthEl.textContent = 'OFFLINE';
+            systemHealthEl.className = 'kpi-big-num text-rose';
+        }
+        if (healthSubtextEl) {
+            healthSubtextEl.textContent = 'Backend Unreachable';
+            healthSubtextEl.className = 'kpi-subtext text-rose';
+        }
+
+        if (indicator3D) {
+            indicator3D.textContent = 'BACKEND STATE UNAVAILABLE / DISCONNECTED';
+            indicator3D.className = 'risk-badge-3d badge-critical';
+        }
+
+        if (mapRegionStatus) {
+            mapRegionStatus.textContent = 'Regional Coverage: 20 cities';
+        }
+        if (citiesOnlineEl) {
+            citiesOnlineEl.textContent = '20';
+        }
+
+        if (eventMarkersGroup) {
+            eventMarkersGroup.clearLayers();
+        }
+
+        const feedContainer = document.getElementById('event-feed-container');
+        if (feedContainer) {
+            feedContainer.innerHTML = `<div class="empty-state-text" style="color: var(--severity-critical);">BACKEND OFFLINE. Retrying connection to ${API_BASE_URL}...</div>`;
+        }
+
+        const fullTimeline = document.getElementById('full-events-timeline');
+        if (fullTimeline) {
+            fullTimeline.innerHTML = `<div class="empty-state-text" style="color: var(--severity-critical);">BACKEND OFFLINE. Retrying connection to ${API_BASE_URL}...</div>`;
         }
     }
 }
@@ -463,6 +539,7 @@ function renderKPIs(state) {
     const anomaliesCountEl = document.getElementById('kpi-anomalies-count');
     const correlationsCountEl = document.getElementById('kpi-correlations-count');
     const systemHealthEl = document.getElementById('kpi-system-health');
+    const healthSubtextEl = document.getElementById('kpi-health-subtext');
 
     const score = state.overall_risk_score ?? 0;
     const level = (state.overall_risk_level || 'LOW').toUpperCase();
@@ -480,7 +557,14 @@ function renderKPIs(state) {
     if (eventsCountEl) eventsCountEl.textContent = recentEvents.length;
     if (anomaliesCountEl) anomaliesCountEl.textContent = anomalies.length;
     if (correlationsCountEl) correlationsCountEl.textContent = correlations.length;
-    if (systemHealthEl) systemHealthEl.textContent = 'OPERATIONAL';
+    if (systemHealthEl) {
+        systemHealthEl.textContent = 'OPERATIONAL';
+        systemHealthEl.className = 'kpi-big-num text-emerald';
+    }
+    if (healthSubtextEl) {
+        healthSubtextEl.textContent = 'Pathway Engine Operational';
+        healthSubtextEl.className = 'kpi-subtext text-emerald';
+    }
 }
 
 /* Render Live Timeline Feed */

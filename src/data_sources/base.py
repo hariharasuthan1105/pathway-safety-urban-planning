@@ -52,6 +52,9 @@ class DataSourceManager:
 
         if self.data_mode in ["simulation", "hybrid"]:
             logger.info("Initializing fallback/simulation data sources...")
+            from .traffic_sim import TrafficSimulationSource
+            sources.append(TrafficSimulationSource(self.config))
+
             if mode == 'public_safety':
                 if data_sources_config.get('social_media', {}).get('enabled', True):
                     from .public_safety import SocialMediaSource
