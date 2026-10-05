@@ -85,3 +85,27 @@ def test_realtime_event_flow_to_copilot():
     assert "Chemical gas leak" in res2["answer"]
     assert res2["evidence"][-1]["event_id"] == "REALTIME_TEST_002"
 
+def test_combine_pathway_streams_regression():
+    from src.main import combine_pathway_streams
+    try:
+        import pathway as pw
+    except ImportError:
+        from src.pathway_compat import pw
+
+    # 1. Empty list error handling
+    with pytest.raises(ValueError, match="No data streams provided"):
+        combine_pathway_streams([])
+
+    # 2. Single stream case returns stream directly
+    t1 = pw.Table()
+    res_single = combine_pathway_streams([t1])
+    assert res_single is t1
+
+    # 3. Multiple streams list combination
+    t2 = pw.Table()
+    t3 = pw.Table()
+    res_multi = combine_pathway_streams([t1, t2, t3])
+    assert res_multi is not None
+    assert hasattr(res_multi, "select")
+
+

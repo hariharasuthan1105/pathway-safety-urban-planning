@@ -31,7 +31,39 @@ from src.processing import AnomalyDetector, RAGSystem, CityStateManager, get_sha
 from src.app import Dashboard
 from src.webhook_server import start_webhook_server, register_ai_query_handler
 
+def combine_pathway_streams(streams: list) -> pw.Table:
+    """
+    Safely combines multiple Pathway streaming tables into a single table.
+    Supports native Pathway 0.33.0+ and pathway_compat fallback layer.
+    Guards empty list and single stream edge cases.
+    """
+    if not streams:
+        raise ValueError("No data streams provided for Pathway pipeline combination.")
+    if len(streams) == 1:
+        return streams[0]
+
+    if hasattr(pw.Table, "concat_reindex"):
+        try:
+            return pw.Table.concat_reindex(*streams)
+        except Exception:
+            pass
+
+    if hasattr(streams[0], "concat_reindex"):
+        try:
+            return streams[0].concat_reindex(*streams[1:])
+        except Exception:
+            pass
+
+    if hasattr(streams[0], "concat"):
+        try:
+            return streams[0].concat(*streams[1:])
+        except Exception:
+            pass
+
+    return pw.Table.concat(*streams)
+
 def load_config(config_path: str) -> dict:
+
     path = Path(config_path)
     if not path.exists():
         example_path = Path(f"{config_path}.example")
@@ -118,13 +150,9 @@ def main():
     
     # Build Pathway pipeline
     logger.info("Pathway pipeline starting...")
-    if data_streams:
-        if hasattr(pw.Table, "concat_by_name"):
-            combined_table = pw.Table.concat_by_name(*data_streams)
-        else:
-            combined_table = pw.Table.concat(data_streams)
-    else:
-        combined_table = pw.Table()
+    combined_table = combine_pathway_streams(data_streams)
+
+
 
     # Process data
     processed_table = combined_table.select(

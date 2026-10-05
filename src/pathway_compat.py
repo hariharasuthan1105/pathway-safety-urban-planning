@@ -169,13 +169,28 @@ except ImportError:
             return self.data
 
         @classmethod
-        def concat(cls, tables: List['Table']) -> 'Table':
+        def concat(cls, *args) -> 'Table':
+            tables = []
+            for arg in args:
+                if isinstance(arg, list):
+                    tables.extend(arg)
+                elif isinstance(arg, Table):
+                    tables.append(arg)
             combined = Table()
             for t in tables:
                 t.children.append(combined)
                 for row in t._fetch_rows():
                     combined.publish(row)
             return combined
+
+        @classmethod
+        def concat_by_name(cls, *args) -> 'Table':
+            return cls.concat(*args)
+
+        @classmethod
+        def concat_reindex(cls, *args) -> 'Table':
+            return cls.concat(*args)
+
 
     class ConnectorSubject:
         def __init__(self, *args, **kwargs):
