@@ -4,7 +4,7 @@ An end-to-end real-time urban intelligence platform and Human-in-the-Loop AI Cop
 
 ---
 
-## Overview
+## Overview Content
 
 The **Real-Time Urban Intelligence Platform** ingests heterogeneous city telemetry (weather, air quality, traffic sensors, police scanner alerts, and HTTP webhooks), streams and processes events through **Pathway**, maintains a real-time **Live City State**, detects temporal anomalies, computes dynamic 0–100 risk scores, correlates events across independent data sources, and provides an evidence-grounded **AI Urban Copilot**.
 
