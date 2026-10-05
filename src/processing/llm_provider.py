@@ -1,8 +1,8 @@
 """
-Isolated LLM Provider Layer for Phase 5.
+Isolated LLM Provider Layer for Urban Intelligence.
 
-Supports OpenAI API integration with structured prompt execution,
-fallback parsing, timeout safety, and mock provider support for testing.
+Supports Groq API integration with structured prompt execution,
+fallback parsing, timeout safety, and deterministic mock provider support for offline validation.
 """
 
 import os
@@ -20,21 +20,21 @@ class BaseLLMProvider:
     def generate_structured_response(self, prompt: str, system_instruction: str = "") -> Dict[str, Any]:
         raise NotImplementedError
 
-class OpenAIProvider(BaseLLMProvider):
-    """OpenAI API implementation with structured JSON extraction."""
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo", temperature: float = 0.2):
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or ""
-        self.model = model
+class GroqProvider(BaseLLMProvider):
+    """Groq API implementation with structured JSON extraction."""
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, temperature: float = 0.2):
+        self.api_key = api_key or os.getenv("GROQ_API_KEY") or ""
+        self.model = model or os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
         self.temperature = temperature
 
     def is_configured(self) -> bool:
-        return bool(self.api_key and self.api_key != "YOUR_OPENAI_API_KEY")
+        return bool(self.api_key and self.api_key not in ["YOUR_GROQ_API_KEY", "YOUR_OPENAI_API_KEY"])
 
     def generate_structured_response(self, prompt: str, system_instruction: str = "") -> Dict[str, Any]:
         if not self.is_configured():
             return {
                 "error": "MISSING_API_KEY",
-                "answer": "AI LLM is not configured. Live city intelligence and RAG are available, but natural-language synthesis requires an LLM API key.",
+                "answer": "Groq API key not configured. Running in fallback Copilot mode.",
                 "risk_level": "UNKNOWN",
                 "confidence": "NONE",
                 "affected_zones": [],
@@ -43,8 +43,8 @@ class OpenAIProvider(BaseLLMProvider):
             }
 
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=self.api_key)
+            from groq import Groq
+            client = Groq(api_key=self.api_key)
 
             messages = []
             if system_instruction:
@@ -62,14 +62,14 @@ class OpenAIProvider(BaseLLMProvider):
             return self._parse_json_response(raw_text)
 
         except Exception as e:
-            logger.error(f"[OpenAIProvider] Error generating response: {e}")
+            logger.error(f"[GroqProvider] Error generating response: {e}")
             return {
                 "error": str(e),
-                "answer": f"Error communicating with LLM provider: {str(e)}",
+                "answer": f"Error communicating with Groq LLM provider: {str(e)}",
                 "risk_level": "UNKNOWN",
                 "confidence": "LOW",
                 "affected_zones": [],
-                "key_factors": ["LLM service request failed"],
+                "key_factors": ["Groq service request failed"],
                 "evidence": []
             }
 
@@ -96,7 +96,7 @@ class OpenAIProvider(BaseLLMProvider):
                     "evidence": parsed.get("evidence", [])
                 }
         except Exception:
-            logger.warning("[OpenAIProvider] Failed to parse JSON response. Falling back to plain text answer.")
+            logger.warning("[GroqProvider] Failed to parse JSON response. Falling back to plain text answer.")
 
         return {
             "answer": raw_text,
@@ -106,6 +106,11 @@ class OpenAIProvider(BaseLLMProvider):
             "key_factors": [],
             "evidence": []
         }
+
+# Legacy OpenAIProvider class aliased for backwards compatibility
+class OpenAIProvider(GroqProvider):
+    """Legacy alias redirecting to GroqProvider."""
+    pass
 
 class MockLLMProvider(BaseLLMProvider):
     """Deterministic Mock LLM Provider for unit testing and offline validation."""
@@ -133,9 +138,6 @@ class MockLLMProvider(BaseLLMProvider):
                     }
                 ]
             }
-
-
-
 
         # Dynamically parse prompt to extract live telemetry events & risk metrics
         import re
@@ -205,4 +207,3 @@ class MockLLMProvider(BaseLLMProvider):
             "key_factors": ["System baseline telemetry active"],
             "evidence": []
         }
-

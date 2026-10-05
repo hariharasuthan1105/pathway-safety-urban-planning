@@ -45,9 +45,9 @@ def load_config(config_path: str) -> dict:
     with open(path, 'r', encoding='utf-8') as f:
         config = yaml.safe_load(f) or {}
 
-    openai_key = os.getenv("OPENAI_API_KEY")
-    if openai_key and 'llm' in config:
-        config['llm']['api_key'] = openai_key
+    groq_key = os.getenv("GROQ_API_KEY")
+    if groq_key and 'llm' in config:
+        config['llm']['api_key'] = groq_key
 
     return config
 
@@ -103,9 +103,9 @@ def main():
     anomaly_detector = AnomalyDetector(config)
     
     if rag_system.has_valid_key:
-        logger.info("LLM configuration detected: Valid OpenAI key found.")
+        logger.info("LLM configuration detected: Valid Groq key found.")
     else:
-        logger.warning("LLM configuration detected: OPENAI_API_KEY missing or placeholder.")
+        logger.info("Groq API key not configured. Running in fallback Copilot mode.")
     
     # Register AI query handler for POST /api/ask endpoint
     def handle_ai_query(question: str) -> dict:

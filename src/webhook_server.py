@@ -6,7 +6,7 @@ Endpoints:
 - GET /api/state (Protected, complete real-time state with provenance)
 - GET /api/stream (Protected, SSE real-time delta updates)
 - GET /api/cities/{id}/history (Protected, metric history)
-- POST /api/ask (Protected, Grounded RAG + OpenAI decision support)
+- POST /api/ask (Protected, Grounded RAG + Groq decision support)
 - POST /events (Public/Authenticated webhook ingestion)
 - GET /api/health (Public health check)
 """
@@ -322,7 +322,7 @@ async def ingest_webhook_event(request: Request):
 
 @app.post("/api/ask")
 async def ask_copilot(req: AskRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
-    """Grounded RAG query execution against OpenAI LLM."""
+    """Grounded RAG query execution against Groq LLM or fallback Copilot."""
     if _AI_QUERY_HANDLER:
         res = _AI_QUERY_HANDLER(req.question)
         res["state_version_used"] = int(time.time() * 10)

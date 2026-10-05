@@ -1,9 +1,9 @@
 """
-Pathway Real-Time RAG System & LLM Integration for Phase 5.
+Pathway Real-Time RAG System & LLM Integration.
 
 Maintains real-time document indexing, retrieves streaming City State context,
 constructs grounded prompt schemas, and delegates natural language synthesis to
-the LLM provider layer.
+the Groq LLM provider layer or fallback Copilot engine.
 """
 
 import os
@@ -17,7 +17,7 @@ try:
 except ImportError:
     from ..pathway_compat import pw
 
-from .llm_provider import BaseLLMProvider, OpenAIProvider, MockLLMProvider
+from .llm_provider import BaseLLMProvider, GroqProvider, OpenAIProvider, MockLLMProvider
 from .copilot_engine import CopilotEngine
 
 logger = logging.getLogger(__name__)
@@ -44,22 +44,31 @@ class RAGSystem:
         self.config = config or {}
         llm_config = self.config.get('llm', {})
         
-        self.api_key = os.getenv('OPENAI_API_KEY') or llm_config.get('api_key', '')
-        if not self.api_key or self.api_key == "YOUR_OPENAI_API_KEY":
-            logger.warning("OPENAI_API_KEY is missing or set to placeholder. RAG system running in key-missing status mode.")
+        self.api_key = os.getenv('GROQ_API_KEY') or llm_config.get('api_key', '')
+        if not self.api_key or self.api_key in ["YOUR_GROQ_API_KEY", "YOUR_OPENAI_API_KEY"]:
+            logger.info("Groq API key not configured. Running in fallback Copilot mode.")
             self.has_valid_key = False
         else:
             self.has_valid_key = True
 
-        self.model_name = llm_config.get('model', 'gpt-3.5-turbo')
-        self.temperature = llm_config.get('temperature', 0.2)
+        self.model_name = llm_config.get('model') or os.getenv('LLM_MODEL', 'llama-3.3-70b-versatile')
+        if self.model_name in ['gpt-3.5-turbo', 'gpt-4']:
+            self.model_name = 'llama-3.3-70b-versatile'
+
+        self.temperature = float(llm_config.get('temperature', 0.2))
 
         # Provider & Copilot Engine injection
-        self.provider = provider or OpenAIProvider(
-            api_key=self.api_key,
-            model=self.model_name,
-            temperature=self.temperature
-        )
+        if provider:
+            self.provider = provider
+        elif self.has_valid_key:
+            self.provider = GroqProvider(
+                api_key=self.api_key,
+                model=self.model_name,
+                temperature=self.temperature
+            )
+        else:
+            self.provider = MockLLMProvider()
+
         self.copilot_engine = CopilotEngine(self.config)
         self.documents: List[Dict[str, Any]] = []
 
@@ -78,7 +87,7 @@ class RAGSystem:
 
     def prepare_city_state_context(self, city_state: Dict[str, Any]) -> str:
         """
-        Prepares structured live city state context for retrieval by Phase 5 Pathway LLM / RAG.
+        Prepares structured live city state context for retrieval by Pathway LLM / RAG.
         """
         if not city_state:
             return "No active City State recorded."
@@ -134,7 +143,6 @@ class RAGSystem:
 
         return "\n".join(context_lines)
 
-
     def query_structured(self, question: str, city_state: Optional[Dict[str, Any]] = None, k: int = 5) -> Dict[str, Any]:
         """
         Executes real-time RAG context retrieval and queries the LLM provider for a structured response.
@@ -177,11 +185,11 @@ class RAGSystem:
                 latest_event_summary = f" Latest event: {d.get('event_id', 'unk')} ({d.get('event_type', 'incident')}) with severity {d.get('severity', 'LOW')} ({d.get('description', 'N/A')})."
 
             ans_text = (
-                f"[Grounded RAG Notice] OPENAI_API_KEY is not configured in .env.\n"
+                f"[Grounded RAG Notice] GROQ_API_KEY is not configured in .env.\n"
                 f"Live city risk index: {risk_score}/100 ({risk_lvl}).{latest_event_summary}\n"
                 f"Retrieved {len(relevant_docs)} live streaming events from RAG context index:\n"
                 f"{docs_str if docs_str else 'No events in active window.'}\n"
-                f"Set OPENAI_API_KEY to enable full OpenAI LLM natural language synthesis."
+                f"Set GROQ_API_KEY to enable full Groq LLM natural language synthesis."
             )
 
             citations = []
@@ -209,7 +217,6 @@ class RAGSystem:
                 city_state=city_state or {},
                 raw_llm_response=raw_resp
             )
-
 
         # Build Context from CityState + Recent Documents
         city_state_str = self.prepare_city_state_context(city_state) if city_state else "No city state supplied."
@@ -251,7 +258,6 @@ Provide your structured JSON response strictly adhering to the JSON schema.
                     "severity": d_data.get("severity", "LOW")
                 })
             response_dict["evidence"] = citations[:5]
-
 
         # Enrich response via CopilotEngine (intents, Human-in-the-Loop recommendations, dashboard actions)
         return self.copilot_engine.process_copilot_request(

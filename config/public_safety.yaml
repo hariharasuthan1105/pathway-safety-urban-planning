@@ -17,8 +17,8 @@ anomaly_rules:
   traffic_flow: 0.2
 
 llm:
-  model: "gpt-3.5-turbo"
-  api_key: "YOUR_OPENAI_API_KEY"
+  model: "llama-3.3-70b-versatile"
+  api_key: "YOUR_GROQ_API_KEY"
   temperature: 0.3
 
 output:

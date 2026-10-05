@@ -4,9 +4,9 @@ from src.processing import RAGSystem
 def test_rag_system():
     config = {
         'llm': {
-            'model': 'gpt-3.5-turbo',
-            'api_key': 'YOUR_OPENAI_API_KEY',
-            'temperature': 0.3
+            'model': 'llama-3.3-70b-versatile',
+            'api_key': 'YOUR_GROQ_API_KEY',
+            'temperature': 0.2
         }
     }
     rag_system = RAGSystem(config)
@@ -29,5 +29,7 @@ def test_rag_system():
     # Test querying without API key returns informative string
     response = rag_system.query("What is the noise level at Central Park?")
     assert isinstance(response, str)
-    assert "city_sensors" in response or "RAG System" in response
+    assert "Based on retrieved live telemetry" in response or "RAG System" in response
+
+
 
