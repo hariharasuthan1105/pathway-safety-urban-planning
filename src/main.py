@@ -58,6 +58,10 @@ def main():
                         help='System mode to run (default: public_safety)')
     parser.add_argument('--config', type=str, 
                         help='Path to configuration file')
+    parser.add_argument('--host', type=str, default='0.0.0.0',
+                        help='Host to bind web server (default: 0.0.0.0)')
+    parser.add_argument('--port', type=int, default=None,
+                        help='Port to bind web server')
     
     args = parser.parse_args()
     
@@ -78,8 +82,9 @@ def main():
 
     # Start HTTP Webhook server in background thread
     try:
-        webhook_port = int(os.getenv("WEBHOOK_PORT", config.get("webhook_port", 8000)))
-        start_webhook_server(port=webhook_port)
+        port_env = os.getenv("PORT") or os.getenv("WEBHOOK_PORT")
+        webhook_port = args.port if args.port is not None else (int(port_env) if port_env else config.get("webhook_port", 8000))
+        start_webhook_server(host=args.host, port=webhook_port)
     except Exception as e:
         logger.warning(f"Failed to launch Webhook HTTP server on port {webhook_port}: {e}")
 
@@ -157,7 +162,7 @@ def main():
     dashboard = Dashboard(processed_table, anomalies_table, rag_system, config, city_state_manager=city_state_manager)
     dashboard.run()
 
-    logger.info("Server listening for events on http://localhost:8000 ...")
+    logger.info(f"Server listening for events on http://{args.host}:{webhook_port} ...")
     try:
         while True:
             time.sleep(1)

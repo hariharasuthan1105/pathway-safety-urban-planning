@@ -5,7 +5,7 @@ Endpoints:
 - POST /api/auth/signup, POST /api/auth/login, POST /api/auth/logout, GET /api/auth/me
 - GET /api/state (Protected, complete real-time state with provenance)
 - GET /api/stream (Protected, SSE real-time delta updates)
-- GET /api/cities/{city_id}/history (Protected, metric history)
+- GET /api/cities/{id}/history (Protected, metric history)
 - POST /api/ask (Protected, Grounded RAG + OpenAI decision support)
 - POST /events (Public/Authenticated webhook ingestion)
 - GET /api/health (Public health check)
@@ -49,7 +49,9 @@ app = FastAPI(
 )
 
 # Configure CORS Middleware
-allowed_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8000,http://127.0.0.1:5173").split(",")
+raw_cors = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8000,http://127.0.0.1:5173")
+allowed_origins = [origin.strip() for origin in raw_cors.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
@@ -57,6 +59,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Helper for secure session cookie configuration
+def set_auth_cookie(response: Response, token: str, max_age: int):
+    is_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+    samesite_val = os.getenv("COOKIE_SAMESITE", "none" if is_secure else "lax")
+    response.set_cookie(
+        key="session_token",
+        value=token,
+        httponly=True,
+        samesite=samesite_val,
+        secure=is_secure,
+        max_age=max_age,
+        path="/"
+    )
 
 # Pydantic Request Models
 class SignupRequest(BaseModel):
@@ -110,16 +126,7 @@ async def auth_signup(req: SignupRequest, response: Response):
         # Automatically authenticate upon successful signup
         auth_res = authenticate_user(req.email, req.password, remember=True)
         token = auth_res["token"]
-
-        response.set_cookie(
-            key="session_token",
-            value=token,
-            httponly=True,
-            samesite="lax",
-            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
-            max_age=30 * 86400,
-            path="/"
-        )
+        set_auth_cookie(response, token, max_age=30 * 86400)
         return {"user": auth_res["user"], "token": token, "message": "Account created successfully"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -133,16 +140,7 @@ async def auth_login(req: LoginRequest, response: Response):
         auth_res = authenticate_user(req.email, req.password, remember=req.remember)
         token = auth_res["token"]
         max_age = 30 * 86400 if req.remember else 86400
-
-        response.set_cookie(
-            key="session_token",
-            value=token,
-            httponly=True,
-            samesite="lax",
-            secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
-            max_age=max_age,
-            path="/"
-        )
+        set_auth_cookie(response, token, max_age=max_age)
         return {"user": auth_res["user"], "token": token, "message": "Authenticated successfully"}
     except ValueError as e:
         raise HTTPException(status_code=401, detail=str(e))
@@ -201,7 +199,6 @@ async def stream_state_updates(current_user: Dict[str, Any] = Depends(get_curren
     """Server-Sent Events (SSE) streaming endpoint pushing real-time state deltas."""
     async def event_generator():
         city_state_mgr = get_shared_city_state_manager()
-        last_version = 0
 
         while True:
             try:
@@ -341,7 +338,7 @@ async def ask_copilot(req: AskRequest, current_user: Dict[str, Any] = Depends(ge
 # Thread handle for background server
 _SERVER_THREAD: Optional[threading.Thread] = None
 
-def start_webhook_server(port: int = 8000):
+def start_webhook_server(host: str = "0.0.0.0", port: int = 8000):
     """Launches FastAPI uvicorn web server in a background daemon thread."""
     global _SERVER_THREAD
     if _SERVER_THREAD and _SERVER_THREAD.is_alive():
@@ -349,8 +346,8 @@ def start_webhook_server(port: int = 8000):
         return
 
     def run_app():
-        uvicorn.run(app, host="0.0.0.0", port=port, log_level="warning")
+        uvicorn.run(app, host=host, port=port, log_level="warning")
 
     _SERVER_THREAD = threading.Thread(target=run_app, daemon=True)
     _SERVER_THREAD.start()
-    logger.info(f"[FastAPI Server] Successfully launched background web server on http://0.0.0.0:{port}")
+    logger.info(f"[FastAPI Server] Successfully launched background web server on http://{host}:{port}")
