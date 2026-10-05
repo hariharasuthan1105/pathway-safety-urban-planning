@@ -53,7 +53,7 @@ export const Login: React.FC = () => {
               <Cpu className="w-3.5 h-3.5" />
               <span>AI Engine</span>
             </div>
-            <p className="text-lg font-bold text-white tabular-nums">OpenAI</p>
+            <p className="text-lg font-bold text-white tabular-nums">Groq</p>
             <p className="text-[11px] text-slate-500">Grounded RAG</p>
           </div>
         </div>

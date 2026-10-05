@@ -19,7 +19,8 @@ interface FetchOptions extends RequestInit {
 
 export async function fetchApi<T = any>(endpoint: string, options: FetchOptions = {}): Promise<T> {
   const { timeoutMs = 8000, retries = 2, ...customConfig } = options;
-  const url = endpoint.startsWith('http') ? endpoint : `${config.apiBaseUrl}${endpoint}`;
+  const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = endpoint.startsWith('http') ? endpoint : `${config.apiBaseUrl}${path}`;
 
   const defaultHeaders: HeadersInit = {
     'Accept': 'application/json',

@@ -54,7 +54,7 @@ export const CopilotWorkspace: React.FC<CopilotProps> = ({ onSelectActionCity })
           <div>
             <h2 className="text-xl font-bold text-white tracking-tight">Urban Intelligence Copilot</h2>
             <p className="text-xs text-slate-400">
-              Ask about live operational state across South India (Grounded RAG + OpenAI).
+              Ask about live operational state across South India (Grounded RAG + Groq).
             </p>
           </div>
         </div>

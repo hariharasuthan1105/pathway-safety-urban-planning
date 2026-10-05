@@ -100,7 +100,7 @@ export const Landing: React.FC = () => {
             <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Cpu className="w-5 h-5 text-indigo-400" />
-                <span className="text-sm font-semibold text-white">Grounded RAG + OpenAI</span>
+                <span className="text-sm font-semibold text-white">Grounded RAG + Groq</span>
               </div>
               <span className="text-xs text-indigo-400 font-mono">DECISION SUPPORT</span>
             </div>
