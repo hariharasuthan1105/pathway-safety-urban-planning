@@ -1,0 +1,27 @@
+mode: public_safety
+data_sources:
+  social_media:
+    enabled: true
+    keywords: ["fire", "accident", "protest", "emergency"]
+    api_key: "YOUR_TWITTER_API_KEY"
+  public_safety:
+    enabled: true
+    scanner_url: "http://api.example.com/scanner"
+  iot_sensors:
+    enabled: true
+    simulation_rate: 0.5  # seconds between readings
+
+anomaly_rules:
+  noise_level: 80
+  crowd_density: 0.8
+  social_media_spike: 10  # mentions per minute
+  traffic_flow: 0.2
+
+llm:
+  model: "gpt-3.5-turbo"
+  api_key: "YOUR_OPENAI_API_KEY"
+  temperature: 0.3
+
+output:
+  dashboard_port: 8501
+  alert_webhook: "http://your-alert-system.com/webhook"

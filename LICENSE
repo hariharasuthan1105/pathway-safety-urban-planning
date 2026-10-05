@@ -1,0 +1,2 @@
+import pathway as pw
+ pw.set_license_key('27D7A7-0B24AE-D4DCD3-262536-9558C0-V3')

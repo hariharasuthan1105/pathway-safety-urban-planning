@@ -1,0 +1,23 @@
+mode: urban_planning
+data_sources:
+  transit:
+    enabled: true
+    api_url: "http://api.example.com/transit"
+    api_key: "YOUR_TRANSIT_API_KEY"
+  traffic:
+    enabled: true
+    provider: "tomtom"  # or google
+    api_key: "YOUR_TRAFFIC_API_KEY"
+  environment:
+    enabled: true
+    air_quality_url: "http://api.example.com/air_quality"
+    noise_url: "http://api.example.com/noise"
+
+llm:
+  model: "gpt-4"
+  api_key: "YOUR_OPENAI_API_KEY"
+  temperature: 0.2
+
+output:
+  dashboard_port: 8502
+  map_center: [40.7128, -74.0060]  # NYC coordinates
