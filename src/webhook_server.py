@@ -13,6 +13,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Dict, Any, Optional, Callable
 
 from .data_sources.real_sources import ingest_webhook_payload
+from .processing.shared_state import get_shared_city_state_manager, get_shared_rag_system
 
 logger = logging.getLogger("webhook_server")
 
@@ -26,6 +27,127 @@ def register_ai_query_handler(handler: Callable[[str], Dict[str, Any]]):
     logger.info("[Webhook Server] Registered AI RAG query handler for /api/ask.")
 
 class WebhookRequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/api/state":
+            try:
+                city_state_mgr = get_shared_city_state_manager()
+                state = city_state_mgr.get_live_city_state()
+                response_body = json.dumps(state).encode('utf-8')
+                
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(response_body)))
+                self.end_headers()
+                self.wfile.write(response_body)
+            except Exception as e:
+                logger.error(f"[Webhook Server] GET /api/state error: {e}")
+                err_body = json.dumps({"error": str(e)}).encode('utf-8')
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(err_body)
+
+        elif self.path == "/api/health":
+            try:
+                import os
+                city_state_mgr = get_shared_city_state_manager()
+                state = city_state_mgr.get_live_city_state()
+                rag_sys = get_shared_rag_system()
+                
+                health_data = {
+                    "status": "HEALTHY",
+                    "pathway_engine": "RUNNING",
+                    "data_mode": os.getenv("DATA_MODE", "HYBRID").upper(),
+                    "llm_configured": getattr(rag_sys, "has_valid_key", False),
+                    "data_freshness": state.get("data_freshness", {}),
+                    "total_events_ingested": len(state.get("recent_events", []))
+                }
+                response_body = json.dumps(health_data).encode('utf-8')
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(response_body)))
+                self.end_headers()
+                self.wfile.write(response_body)
+            except Exception as e:
+                logger.error(f"[Webhook Server] GET /api/health error: {e}")
+                err_body = json.dumps({"error": str(e)}).encode('utf-8')
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(err_body)
+
+        elif self.path == "/api/risk":
+            try:
+                city_state_mgr = get_shared_city_state_manager()
+                state = city_state_mgr.get_live_city_state()
+                risk_data = {
+                    "overall_risk_score": state.get("overall_risk_score", 0),
+                    "overall_risk_level": state.get("overall_risk_level", "LOW"),
+                    "risk_trend": state.get("risk_trend", "STABLE"),
+                    "contributing_factors": state.get("contributing_factors", []),
+                    "zone_summaries": state.get("zone_summaries", {})
+                }
+                response_body = json.dumps(risk_data).encode('utf-8')
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(response_body)))
+                self.end_headers()
+                self.wfile.write(response_body)
+            except Exception as e:
+                logger.error(f"[Webhook Server] GET /api/risk error: {e}")
+                err_body = json.dumps({"error": str(e)}).encode('utf-8')
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(err_body)
+
+        elif self.path == "/api/anomalies":
+            try:
+                city_state_mgr = get_shared_city_state_manager()
+                state = city_state_mgr.get_live_city_state()
+                anom_data = {
+                    "active_anomalies": state.get("active_anomalies", []),
+                    "correlations": state.get("correlations", []),
+                    "count": len(state.get("active_anomalies", []))
+                }
+                response_body = json.dumps(anom_data).encode('utf-8')
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(response_body)))
+                self.end_headers()
+                self.wfile.write(response_body)
+            except Exception as e:
+                logger.error(f"[Webhook Server] GET /api/anomalies error: {e}")
+                err_body = json.dumps({"error": str(e)}).encode('utf-8')
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(err_body)
+
+        elif self.path == "/api/events":
+            try:
+                city_state_mgr = get_shared_city_state_manager()
+                state = city_state_mgr.get_live_city_state()
+                recent_events = state.get("recent_events", [])
+                response_body = json.dumps({"events": recent_events, "count": len(recent_events)}).encode('utf-8')
+
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", str(len(response_body)))
+                self.end_headers()
+                self.wfile.write(response_body)
+            except Exception as e:
+                logger.error(f"[Webhook Server] GET /api/events error: {e}")
+                err_body = json.dumps({"error": str(e)}).encode('utf-8')
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(err_body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+
     def do_POST(self):
         if self.path == "/events":
             content_length = int(self.headers.get('Content-Length', 0))
@@ -39,11 +161,12 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
                     "status": "accepted",
                     "event_id": event["data"].get("event_id"),
                     "timestamp": event["timestamp"],
-                    "message": "Event successfully ingested into Pathway streaming pipeline."
+                    "message": "Event successfully ingested into Pathway streaming pipeline and live city state."
                 }).encode('utf-8')
                 
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Content-Length", str(len(response_body)))
                 self.end_headers()
                 self.wfile.write(response_body)
@@ -68,19 +191,16 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
                 if _AI_QUERY_HANDLER:
                     response_data = _AI_QUERY_HANDLER(question)
                 else:
-                    response_data = {
-                        "error": "HANDLER_NOT_REGISTERED",
-                        "answer": "AI RAG backend query handler is not registered yet.",
-                        "risk_level": "UNKNOWN",
-                        "confidence": "NONE",
-                        "affected_zones": [],
-                        "key_factors": [],
-                        "evidence": []
-                    }
+                    # Fallback to shared RAG system & shared live city state
+                    city_state_mgr = get_shared_city_state_manager()
+                    rag_sys = get_shared_rag_system()
+                    live_state = city_state_mgr.get_live_city_state()
+                    response_data = rag_sys.query_structured(question, city_state=live_state)
 
                 response_body = json.dumps(response_data).encode('utf-8')
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Content-Length", str(len(response_body)))
                 self.end_headers()
                 self.wfile.write(response_body)
@@ -106,6 +226,14 @@ class WebhookRequestHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def do_OPTIONS(self):
+        """Handle CORS pre-flight requests."""
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
     def log_message(self, format, *args):
         pass
 
@@ -116,5 +244,6 @@ def start_webhook_server(host: str = "0.0.0.0", port: int = 8000, daemon: bool =
     server = HTTPServer((host, port), WebhookRequestHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=daemon)
     thread.start()
-    logger.info(f"[Webhook Server] Listening for HTTP POST on http://{host}:{port} (/events & /api/ask)")
+    logger.info(f"[Webhook Server] Listening for HTTP requests on http://{host}:{port} (/events, /api/ask, /api/state)")
     return server
+

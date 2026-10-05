@@ -116,23 +116,93 @@ class MockLLMProvider(BaseLLMProvider):
         return True
 
     def generate_structured_response(self, prompt: str, system_instruction: str = "") -> Dict[str, Any]:
-        return {
-            "answer": self.mock_answer or "Based on retrieved live telemetry, Zone A (Downtown) is at HIGH risk due to a critical traffic collision corroborated by weather data.",
-            "risk_level": "HIGH",
-            "confidence": "HIGH",
-            "affected_zones": ["Zone A (Downtown)"],
-            "key_factors": [
-                "1 critical vehicle collision reported via webhook",
-                "Gridlock traffic detected on traffic API",
-                "Cross-source corroboration across 3 independent sources"
-            ],
-            "evidence": [
+        if self.mock_answer:
+            return {
+                "answer": self.mock_answer,
+                "risk_level": "HIGH",
+                "confidence": "HIGH",
+                "affected_zones": ["Zone A (Downtown)"],
+                "key_factors": ["Mock provider custom answer supplied"],
+                "evidence": [
+                    {
+                        "event_id": "demo_wh01",
+                        "source": "webhook_ingestion",
+                        "timestamp": "2026-10-05T15:00:00Z",
+                        "zone": "Zone A (Downtown)",
+                        "severity": "CRITICAL"
+                    }
+                ]
+            }
+
+
+
+
+        # Dynamically parse prompt to extract live telemetry events & risk metrics
+        import re
+        
+        # Risk score & level extraction
+        risk_match = re.search(r"Overall Risk Index:\s*(\d+)/100\s*\(([A-Z]+)\)", prompt)
+        risk_score = int(risk_match.group(1)) if risk_match else 0
+        risk_level = risk_match.group(2) if risk_match else "LOW"
+
+        # Event line extraction: - Event ID: <id> | Type: <type> | Source: <src> | Zone: <zone> | Severity: <sev> | Details: <desc>
+        event_pattern = re.compile(
+            r"-\s*Event ID:\s*(\S+)\s*\|\s*Type:\s*(\S+)\s*\|\s*Source:\s*(\S+)\s*\|\s*Zone:\s*([^\|]+?)\s*\|\s*Severity:\s*([A-Z]+)\s*\|\s*Details:\s*(.*)"
+        )
+
+        found_events = []
+        for match in event_pattern.finditer(prompt):
+            found_events.append({
+                "event_id": match.group(1).strip(),
+                "event_type": match.group(2).strip(),
+                "source": match.group(3).strip(),
+                "zone": match.group(4).strip(),
+                "severity": match.group(5).strip(),
+                "details": match.group(6).strip()
+            })
+
+        if found_events:
+            latest = found_events[-1]
+            affected_zones = list(dict.fromkeys([ev["zone"] for ev in found_events]))
+            
+            evidence_citations = [
                 {
-                    "event_id": "demo_wh01",
-                    "source": "webhook_ingestion",
-                    "timestamp": "2026-10-05T15:00:00Z",
-                    "zone": "Zone A (Downtown)",
-                    "severity": "CRITICAL"
+                    "event_id": ev["event_id"],
+                    "source": ev["source"],
+                    "timestamp": "CURRENT_STREAM",
+                    "zone": ev["zone"],
+                    "severity": ev["severity"]
                 }
+                for ev in found_events[-5:]
             ]
+
+            answer_text = (
+                f"Based on retrieved live telemetry, the city risk index is {risk_score}/100 ({risk_level}). "
+                f"Latest streaming event detected: {latest['event_id']} ({latest['event_type']}) in {latest['zone']} "
+                f"with severity {latest['severity']} ({latest['details']})."
+            )
+
+            key_factors = [
+                f"Active event {ev['event_id']} ({ev['event_type']}) in {ev['zone']} [{ev['severity']}]"
+                for ev in found_events[-3:]
+            ]
+
+            return {
+                "answer": answer_text,
+                "risk_level": risk_level,
+                "confidence": "HIGH",
+                "affected_zones": affected_zones,
+                "key_factors": key_factors,
+                "evidence": evidence_citations
+            }
+
+        # Default fallback if prompt contains no parsed event lines
+        return {
+            "answer": f"Based on retrieved live telemetry, overall risk level is {risk_level} (Score: {risk_score}/100).",
+            "risk_level": risk_level,
+            "confidence": "MEDIUM",
+            "affected_zones": ["Zone A (Downtown)"],
+            "key_factors": ["System baseline telemetry active"],
+            "evidence": []
         }
+

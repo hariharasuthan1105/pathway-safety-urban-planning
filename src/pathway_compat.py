@@ -10,6 +10,7 @@ import sys
 import time
 import json
 import logging
+import threading
 from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("pathway_compat")
@@ -58,27 +59,70 @@ except ImportError:
         fn._is_udf = True  # type: ignore
         return fn
 
+    _ACTIVE_STREAMS: List[Any] = []
+
     class Table:
         def __init__(self, data: Optional[List[Dict[str, Any]]] = None, generator: Optional[Callable] = None, schema: Any = None):
-            self.data = data or []
+            self.data: List[Dict[str, Any]] = data or []
             self.generator = generator
             self.schema = schema
+            self.children: List['Table'] = []
+            self.subscribers: List[Callable[[Dict[str, Any]], None]] = []
+            self.transform_fn: Optional[Callable[[Dict[str, Any]], Dict[str, Any]]] = None
+            self.filter_fn: Optional[Callable[[Dict[str, Any]], bool]] = None
 
         def __getattr__(self, name: str):
-            if name.startswith("_") or name in ("data", "generator", "schema"):
+            if name.startswith("_") or name in ("data", "generator", "schema", "children", "subscribers", "transform_fn", "filter_fn"):
                 raise AttributeError(name)
             return ColumnExpression(name)
 
+        def subscribe(self, callback: Callable[[Dict[str, Any]], None]):
+            """Registers a sink callback that receives streaming events output by this Pathway table."""
+            if callback not in self.subscribers:
+                self.subscribers.append(callback)
+            for row in list(self.data):
+                try:
+                    callback(row)
+                except Exception as e:
+                    logger.warning(f"Subscriber error on replay: {e}")
+
+        def publish(self, row: Dict[str, Any]):
+            """Processes an incoming row through this Table's transforms, stores it, and notifies children & subscribers."""
+            processed_row = row
+            if self.transform_fn:
+                try:
+                    processed_row = self.transform_fn(row)
+                except Exception as e:
+                    logger.warning(f"Table transform error: {e}")
+                    processed_row = row
+
+            if self.filter_fn:
+                try:
+                    if not self.filter_fn(processed_row):
+                        return
+                except Exception:
+                    return
+
+            self.data.append(processed_row)
+
+            # Notify direct sink subscribers
+            for sub in list(self.subscribers):
+                try:
+                    sub(processed_row)
+                except Exception as e:
+                    logger.warning(f"Error in Pathway sink subscriber: {e}")
+
+            # Forward to child tables in the DAG
+            for child in list(self.children):
+                child.publish(processed_row)
 
         def select(self, *args, **kwargs) -> 'Table':
-            # Evaluates projections over stored or generated data
-            new_data = []
-            source_data = self._fetch_rows()
-            for row in source_data:
+            child = Table(schema=self.schema)
+            
+            def do_transform(row: Dict[str, Any]) -> Dict[str, Any]:
                 new_row = {}
                 for k, v in kwargs.items():
                     if callable(v):
-                        # Handle UDF / function call
                         arg_val = row.get("data", row)
                         try:
                             new_row[k] = v(arg_val)
@@ -88,49 +132,50 @@ except ImportError:
                         new_row[k] = row.get(v.name)
                     else:
                         new_row[k] = row.get(k, v)
-                new_data.append(new_row)
-            return Table(data=new_data)
+                return new_row
+
+            child.transform_fn = do_transform
+            self.children.append(child)
+            
+            # Backfill existing data
+            for row in list(self._fetch_rows()):
+                child.publish(row)
+
+            return child
 
         def filter(self, predicate: Any) -> 'Table':
-            source_data = self._fetch_rows()
-            filtered = []
-            for row in source_data:
-                # Basic anomaly / attribute check
+            child = Table(schema=self.schema)
+
+            def do_filter(row: Dict[str, Any]) -> bool:
                 row_data = row.get("data", {})
                 if isinstance(row_data, dict) and row_data.get("anomaly", False):
-                    filtered.append(row)
+                    return True
                 elif isinstance(row, dict) and row.get("anomaly", False):
-                    filtered.append(row)
-            return Table(data=filtered)
+                    return True
+                return False
+
+            child.filter_fn = do_filter
+            self.children.append(child)
+
+            for row in list(self._fetch_rows()):
+                child.publish(row)
+
+            return child
 
         def collect(self) -> List[Dict[str, Any]]:
             return self._fetch_rows()
 
         def _fetch_rows(self) -> List[Dict[str, Any]]:
-            if self.data:
-                return self.data
-            if self.generator:
-                rows = []
-                gen = self.generator()
-                # Fetch up to 10 sample items for compatibility rendering/collection
-                for _ in range(10):
-                    try:
-                        rows.append(next(gen))
-                    except StopIteration:
-                        break
-                    except Exception as e:
-                        logger.warning(f"Error reading stream row: {e}")
-                        break
-                self.data = rows
-                return rows
-            return []
+            return self.data
 
         @classmethod
         def concat(cls, tables: List['Table']) -> 'Table':
-            all_data = []
+            combined = Table()
             for t in tables:
-                all_data.extend(t._fetch_rows())
-            return Table(data=all_data)
+                t.children.append(combined)
+                for row in t._fetch_rows():
+                    combined.publish(row)
+            return combined
 
         @classmethod
         def concat_by_name(cls, *tables: 'Table') -> 'Table':
@@ -139,7 +184,9 @@ except ImportError:
     class PythonIO:
         @staticmethod
         def read(subject: Callable, schema: Any = None) -> Table:
-            return Table(generator=subject, schema=schema)
+            t = Table(generator=subject, schema=schema)
+            _ACTIVE_STREAMS.append(t)
+            return t
 
     class CSVIO:
         @staticmethod
@@ -159,11 +206,32 @@ except ImportError:
         json = JSONIO()
         jsonlines = JSONIO()
 
+        @staticmethod
+        def subscribe(table: Table, callback: Callable[[Dict[str, Any]], None]):
+            table.subscribe(callback)
+
     def sleep(seconds: float):
         time.sleep(seconds)
 
+    def _run_streaming_engine():
+        logger.info("Pathway streaming engine starting background worker threads...")
+        for table in list(_ACTIVE_STREAMS):
+            if table.generator:
+                def worker(tbl=table):
+                    try:
+                        gen = tbl.generator()
+                        for row in gen:
+                            if isinstance(row, dict):
+                                tbl.publish(row)
+                    except Exception as e:
+                        logger.warning(f"Error in stream generator thread: {e}")
+
+                th = threading.Thread(target=worker, daemon=True)
+                th.start()
+
     def run():
         logger.info("Pathway streaming pipeline running...")
+        _run_streaming_engine()
 
     class CompatibilityPathway:
         Schema = Schema
@@ -174,6 +242,7 @@ except ImportError:
         this = this
         sleep = staticmethod(sleep)
         run = staticmethod(run)
+        _active_streams = _ACTIVE_STREAMS
 
         @staticmethod
         def schema(*args, **kwargs):

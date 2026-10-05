@@ -216,18 +216,19 @@ class WebhookSource(DataSource):
         logger.info("[Webhook Ingestion] Ready to receive POST events via WEBHOOK_EVENT_QUEUE.")
         while True:
             try:
-                event_payload = WEBHOOK_EVENT_QUEUE.get(timeout=1.0)
+                event_payload = WEBHOOK_EVENT_QUEUE.get(timeout=0.5)
                 if event_payload:
                     self.last_updated = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S UTC")
-                    logger.info(f"[Webhook Ingestion] Dispatched webhook event: {event_payload.get('event_type')}")
+                    logger.info(f"[Webhook Ingestion] Dispatched webhook event into Pathway stream: {event_payload.get('data', {}).get('event_type')}")
                     yield event_payload
             except queue.Empty:
                 pass
-            time.sleep(0.5)
+            time.sleep(0.1)
 
 def ingest_webhook_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Validates and normalizes an external HTTP POST payload into a CityEvent and queues it for Pathway.
+    Validates and normalizes an external HTTP POST payload into a CityEvent,
+    queues it for Pathway streaming pipeline processing.
     """
     if not isinstance(payload, dict):
         raise ValueError("Webhook payload must be a valid JSON dictionary.")
@@ -250,4 +251,27 @@ def ingest_webhook_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         timestamp=payload.get("timestamp")
     )
     WEBHOOK_EVENT_QUEUE.put(event)
+
+    # Stream event into active Pathway tables
+    pushed = False
+    try:
+        from ..pathway_compat import _ACTIVE_STREAMS
+        for stream in list(_ACTIVE_STREAMS):
+            if getattr(stream.generator, '__name__', '') == '_stream' and isinstance(getattr(stream.generator, '__self__', None), WebhookSource):
+                stream.publish(event)
+                pushed = True
+    except Exception as e:
+        logger.debug(f"Pathway stream direct publish fallback: {e}")
+
+    # Fallback for standalone unit tests when no Pathway pipeline streams are active
+    if not pushed:
+        try:
+            from ..pathway_compat import _ACTIVE_STREAMS
+            if not _ACTIVE_STREAMS:
+                from ..processing.shared_state import ingest_runtime_event
+                ingest_runtime_event(event)
+        except Exception:
+            pass
+
     return event
+

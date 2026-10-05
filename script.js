@@ -1,1165 +1,593 @@
-    // Global state
-        let currentUser = null;
-        let currentAuthTab = 'signin';
-        let currentDashboardTab = 'overview';
+/**
+ * South India Urban Intelligence & AI Copilot Frontend Application.
+ * Pure API-driven client layer — ZERO hardcoded operational/city intelligence state.
+ */
 
-        // Mock data
-        let cityMetrics = {
-            population: { value: "2.4M", change: 2.1, progress: 78, status: "normal" },
-            traffic: { value: "68%", change: -5.2, progress: 68, status: "warning" },
-            connectivity: { value: "94%", change: 1.8, progress: 94, status: "normal" },
-            energy: { value: "1.2GW", change: -3.1, progress: 85, status: "normal" },
-            water: { value: "98%", change: 0.5, progress: 98, status: "normal" },
-            airQuality: { value: "Good", change: 12.3, progress: 76, status: "normal" },
-            incidents: { value: "23", change: -15.4, progress: 15, status: "critical" },
-            response: { value: "4.2 min", change: -8.5, progress: 88, status: "normal" }
-        };
+// Global App Configuration
+const API_BASE_URL = 'http://localhost:8000';
+const POLLING_INTERVAL_MS = 3000;
 
-        let safetyAlerts = [
-            {
-                id: "1",
-                type: "incident",
-                severity: "high",
-                title: "Crowd Gathering Detected",
-                location: "Central Park West",
-                time: "2 min ago",
-                description: "Unusual crowd density detected via camera network and social media analysis",
-                status: "active",
-                sources: ["CCTV Network", "Social Media", "Foot Traffic Sensors"]
-            },
-            {
-                id: "2",
-                type: "emergency",
-                severity: "critical",
-                title: "Traffic Accident Reported",
-                location: "5th Avenue & 42nd St",
-                time: "5 min ago",
-                description: "Multi-vehicle accident blocking major intersection",
-                status: "responding",
-                sources: ["911 Dispatch", "Traffic Cameras", "Citizen Reports"]
-            },
-            {
-                id: "3",
-                type: "anomaly",
-                severity: "medium",
-                title: "Noise Level Spike",
-                location: "Times Square",
-                time: "8 min ago",
-                description: "Noise levels 40% above normal, possible event or disturbance",
-                status: "active",
-                sources: ["Noise Sensors", "Audio Analysis"]
+// State Variables (UI-only)
+let map = null;
+let mapMarkers = [];
+let isConnected = false;
+let currentCityConfig = {
+    name: 'Chennai',
+    lat: 13.0827,
+    lon: 80.2707,
+    zoom: 11
+};
+
+// Initialize Application on Page Load
+document.addEventListener('DOMContentLoaded', () => {
+    initLeafletMap();
+    initEventListeners();
+    fetchBackendState();
+    
+    // Continuous real-time polling loop
+    setInterval(fetchBackendState, POLLING_INTERVAL_MS);
+});
+
+/**
+ * Initializes Leaflet 2D GIS Map centered over South India (Tamil Nadu, Kerala, Andhra Pradesh).
+ */
+function initLeafletMap() {
+    // Center of South India
+    map = L.map('gis-map').setView([11.0, 78.5], 7);
+
+    // OpenStreetMap Tile Layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+}
+
+/**
+ * Attaches DOM Event Listeners for City Selection & Severity Filtering.
+ */
+function initEventListeners() {
+    const citySelect = document.getElementById('city-selector');
+    if (citySelect) {
+        citySelect.addEventListener('change', (e) => {
+            const selectedOpt = citySelect.options[citySelect.selectedIndex];
+            const lat = parseFloat(selectedOpt.getAttribute('data-lat'));
+            const lon = parseFloat(selectedOpt.getAttribute('data-lon'));
+            const name = selectedOpt.text;
+            
+            if (!isNaN(lat) && !isNaN(lon)) {
+                currentCityConfig = { name, lat, lon, zoom: 11 };
+                map.setView([lat, lon], 11);
             }
-        ];
-
-        let sensorData = [
-            { location: "Downtown", noiseLevel: 65, crowdDensity: 78, trafficFlow: 85, status: "normal" },
-            { location: "Financial District", noiseLevel: 72, crowdDensity: 45, trafficFlow: 92, status: "warning" },
-            { location: "Central Park", noiseLevel: 55, crowdDensity: 95, trafficFlow: 35, status: "error" },
-            { location: "Times Square", noiseLevel: 88, crowdDensity: 150, trafficFlow: 75, status: "error" }
-        ];
-
-        let chatMessages = [
-            {
-                id: "1",
-                type: "assistant",
-                content: "Hello! I'm your Urban Planning AI Assistant. I can help you analyze city data, traffic patterns, and provide insights for urban development. What would you like to know?",
-                timestamp: new Date()
-            }
-        ];
-
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', function() {
-            startLoadingSequence();
-            setupEventListeners();
-        });
-
-        // Loading sequence
-        function startLoadingSequence() {
-            const progressFill = document.getElementById('progress-fill');
-            const progressText = document.getElementById('progress-text');
-            
-            const loadingTexts = [
-                'Initializing city monitoring systems...',
-                'Connecting to sensor networks...',
-                'Loading traffic data feeds...',
-                'Establishing AI analysis engines...',
-                'Preparing dashboard interface...',
-                'System ready!'
-            ];
-            
-            let progress = 0;
-            let textIndex = 0;
-            
-            const interval = setInterval(() => {
-                progress += Math.random() * 15 + 5;
-                
-                if (progress >= 100) {
-                    progress = 100;
-                    clearInterval(interval);
-                    setTimeout(completeLoading, 500);
-                }
-                
-                progressFill.style.width = progress + '%';
-                progressText.textContent = `${loadingTexts[textIndex]} ${Math.round(progress)}%`;
-                
-                if (textIndex < loadingTexts.length - 1 && progress > (textIndex + 1) * (100 / loadingTexts.length)) {
-                    textIndex++;
-                }
-            }, 200);
-        }
-
-        function completeLoading() {
-            const loadingScreen = document.getElementById('loading-screen');
-            const mainApp = document.getElementById('main-app');
-            
-            loadingScreen.style.opacity = '0';
-            loadingScreen.style.transition = 'opacity 0.5s ease-out';
-            
-            setTimeout(() => {
-                loadingScreen.style.display = 'none';
-                mainApp.classList.remove('hidden');
-            }, 500);
-        }
-
-        // Event listeners
-        function setupEventListeners() {
-            // Auth form
-            document.getElementById('auth-form').addEventListener('submit', handleAuthSubmit);
-            
-            // Tab navigation
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const tab = e.target.closest('.tab-btn').dataset.tab;
-                    switchDashboardTab(tab);
-                });
-            });
-            
-            // Chat input
-            const chatInput = document.getElementById('chat-input-field');
-            chatInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
-                    sendChatMessage();
-                }
-            });
-            
-            // Start real-time updates
-            startRealTimeUpdates();
-        }
-
-        // Auth functions
-        function openAuthModal() {
-            document.getElementById('auth-modal').classList.add('active');
-            document.body.style.overflow = 'hidden';
-        }
-
-        function closeAuthModal() {
-            document.getElementById('auth-modal').classList.remove('active');
-            document.body.style.overflow = 'auto';
-            resetAuthForm();
-        }
-
-        function switchAuthTab(tab) {
-            currentAuthTab = tab;
-            
-            // Update tab buttons
-            document.querySelectorAll('.auth-tab').forEach(tabBtn => {
-                tabBtn.classList.remove('active');
-            });
-            document.querySelectorAll('.auth-tab').forEach(tabBtn => {
-                if (tabBtn.textContent.toLowerCase().includes(tab)) {
-                    tabBtn.classList.add('active');
-                }
-            });
-            
-            // Update form
-            const nameGroup = document.getElementById('name-group');
-            const confirmPasswordGroup = document.getElementById('confirm-password-group');
-            const authTitle = document.getElementById('auth-title');
-            const authDescription = document.getElementById('auth-description');
-            const authButtonText = document.getElementById('auth-button-text');
-            const authSwitchBtn = document.getElementById('auth-switch-btn');
-            
-            if (tab === 'signup') {
-                nameGroup.classList.remove('hidden');
-                confirmPasswordGroup.classList.remove('hidden');
-                authTitle.textContent = 'Join Urban Intelligence';
-                authDescription.textContent = 'Create your account to access city insights';
-                authButtonText.textContent = 'Create Account';
-                authSwitchBtn.textContent = 'Already have an account? Sign in';
-                document.getElementById('name').required = true;
-                document.getElementById('confirm-password').required = true;
-            } else {
-                nameGroup.classList.add('hidden');
-                confirmPasswordGroup.classList.add('hidden');
-                authTitle.textContent = 'Welcome Back';
-                authDescription.textContent = 'Sign in to continue monitoring your city';
-                authButtonText.textContent = 'Sign In';
-                authSwitchBtn.textContent = 'Don\'t have an account? Sign up';
-                document.getElementById('name').required = false;
-                document.getElementById('confirm-password').required = false;
-            }
-        }
-
-        function toggleAuthMode() {
-            switchAuthTab(currentAuthTab === 'signin' ? 'signup' : 'signin');
-        }
-
-        function handleAuthSubmit(e) {
-            e.preventDefault();
-            
-            const formData = new FormData(e.target);
-            const email = formData.get('email');
-            const password = formData.get('password');
-            const name = formData.get('name') || email.split('@')[0];
-            
-            if (!email || !password) {
-                alert('Please fill in all required fields.');
-                return;
-            }
-            
-            // Simulate authentication
-            setTimeout(() => {
-                currentUser = { email, name };
-                
-                // Update UI
-                document.getElementById('user-name').textContent = name;
-                document.getElementById('user-email').textContent = email;
-                document.getElementById('user-avatar').textContent = name.charAt(0).toUpperCase();
-                
-                // Show dashboard
-                closeAuthModal();
-                showDashboard();
-                initializeDashboard();
-            }, 1000);
-        }
-
-        function resetAuthForm() {
-            document.getElementById('auth-form').reset();
-            currentAuthTab = 'signin';
-            switchAuthTab('signin');
-        }
-
-        // Dashboard functions
-        function showDashboard() {
-            document.getElementById('landing-page').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
-        }
-
-        function signOut() {
-            currentUser = null;
-            document.getElementById('dashboard').classList.add('hidden');
-            document.getElementById('landing-page').classList.remove('hidden');
-        }
-
-        function switchDashboardTab(tab) {
-            currentDashboardTab = tab;
-            
-            // Update tab buttons
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
-            
-            // Update tab content
-            document.querySelectorAll('.tab-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`${tab}-tab`).classList.add('active');
-            
-            // Initialize content
-            if (tab === 'overview') {
-                updateMetricsGrid();
-            } else if (tab === 'safety') {
-                updateSafetyPanel();
-            } else if (tab === 'chat') {
-                updateChatInterface();
-            }
-        }
-
-        function initializeDashboard() {
-            updateMetricsGrid();
-            updateSafetyPanel();
-            updateChatInterface();
-        }
-
-        // Metrics functions
-        function updateMetricsGrid() {
-            const metricsGrid = document.getElementById('metrics-grid');
-            if (!metricsGrid) return;
-            
-            const metricConfigs = [
-                { key: 'population', title: 'Active Population', icon: 'users', color: 'background: #3b82f6' },
-                { key: 'traffic', title: 'Traffic Congestion', icon: 'car', color: 'background: #f59e0b' },
-                { key: 'connectivity', title: 'Network Coverage', icon: 'wifi', color: 'background: #10b981' },
-                { key: 'energy', title: 'Energy Consumption', icon: 'zap', color: 'background: #f59e0b' },
-                { key: 'water', title: 'Water Quality', icon: 'droplets', color: 'background: #06b6d4' },
-                { key: 'airQuality', title: 'Air Quality', icon: 'wind', color: 'background: #8b5cf6' },
-                { key: 'incidents', title: 'Active Incidents', icon: 'alert-triangle', color: 'background: #ef4444' },
-                { key: 'response', title: 'Emergency Response', icon: 'phone', color: 'background: #6366f1' }
-            ];
-            
-            const iconSvgs = {
-                users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-                car: '<path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.7 9H5.3L3.5 11.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/>',
-                wifi: '<path d="M12 20h.01"/><path d="M2 8.82a15 15 0 0 1 20 0"/><path d="M5 12.859a10 10 0 0 1 14 0"/><path d="M8.5 16.429a5 5 0 0 1 7 0"/>',
-                zap: '<polygon points="13,2 3,14 12,14 11,22 21,10 12,10"/>',
-                droplets: '<path d="M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"/>',
-                wind: '<path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/>',
-                'alert-triangle': '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
-                phone: '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>'
-            };
-            
-            metricsGrid.innerHTML = metricConfigs.map(config => {
-                const metric = cityMetrics[config.key];
-                const changeClass = metric.change >= 0 ? 'positive' : 'negative';
-                const cardClass = metric.status === 'warning' ? 'warning' : metric.status === 'critical' ? 'critical' : '';
-                
-                return `
-                    <div class="metric-card ${cardClass}">
-                        <div class="metric-header">
-                            <div class="metric-title">${config.title}</div>
-                            <div class="metric-icon" style="${config.color}">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    ${iconSvgs[config.icon]}
-                                </svg>
-                            </div>
-                        </div>
-                        <div class="metric-value">${metric.value}</div>
-                        <div class="metric-change ${changeClass}">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/>
-                                <polyline points="17,6 23,6 23,12"/>
-                            </svg>
-                            <span>${Math.abs(metric.change).toFixed(1)}%</span>
-                        </div>
-                        ${metric.progress ? `
-                            <div class="metric-progress">
-                                <div class="metric-progress-fill" style="width: ${metric.progress}%"></div>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // Safety panel functions
-        function updateSafetyPanel() {
-            updateAlertsList();
-            updateSensorsList();
-        }
-
-        function updateAlertsList() {
-            const alertsList = document.getElementById('alerts-list');
-            if (!alertsList) return;
-            
-            alertsList.innerHTML = safetyAlerts.map(alert => {
-                const severityClass = `badge-${alert.severity === 'critical' ? 'critical' : alert.severity === 'high' ? 'high' : 'medium'}`;
-                
-                return `
-                    <div class="alert-item">
-                        <div class="alert-header">
-                            <div>
-                                <div class="alert-badges">
-                                    <span class="badge ${severityClass}">${alert.severity.toUpperCase()}</span>
-                                    <span class="badge badge-outline">${alert.type}</span>
-                                </div>
-                                <h4 style="font-weight: 600; margin: 0.5rem 0;">${alert.title}</h4>
-                                <div class="alert-info">
-                                    <span>📍 ${alert.location}</span>
-                                    <span>🕒 ${alert.time}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="alert-description">${alert.description}</div>
-                        <div class="alert-footer">
-                            <div class="alert-sources">
-                                <span class="text-xs" style="color: var(--text-light);">Sources:</span>
-                                ${alert.sources.map(source => `<span class="source-tag">${source}</span>`).join('')}
-                            </div>
-                            <button class="btn" style="font-size: 0.75rem; padding: 0.25rem 0.75rem;">View Details</button>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        function updateSensorsList() {
-            const sensorsList = document.getElementById('sensors-list');
-            if (!sensorsList) return;
-            
-            sensorsList.innerHTML = sensorData.map(sensor => {
-                const statusClass = `badge-${sensor.status === 'error' ? 'error' : sensor.status === 'warning' ? 'warning' : 'success'}`;
-                
-                return `
-                    <div class="sensor-item">
-                        <div class="sensor-header">
-                            <span style="font-weight: 500;">${sensor.location}</span>
-                            <span class="badge ${statusClass}">${sensor.status}</span>
-                        </div>
-                        <div class="sensor-metrics">
-                            <div class="sensor-metric">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polygon points="11,5 6,9 2,9 2,15 6,15 11,19 11,5"/>
-                                </svg>
-                                <div style="font-weight: 500;">${sensor.noiseLevel}dB</div>
-                                <div style="color: var(--text-light); font-size: 0.75rem;">Noise</div>
-                            </div>
-                            <div class="sensor-metric">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                                    <circle cx="9" cy="7" r="4"/>
-                                    <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
-                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                                </svg>
-                                <div style="font-weight: 500;">${sensor.crowdDensity}%</div>
-                                <div style="color: var(--text-light); font-size: 0.75rem;">Crowd</div>
-                            </div>
-                            <div class="sensor-metric">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9L18.7 9H5.3L3.5 11.1C2.7 11.3 2 12.1 2 13v3c0 .6.4 1 1 1h2"/>
-                                    <circle cx="7" cy="17" r="2"/>
-                                    <path d="M9 17h6"/>
-                                    <circle cx="17" cy="17" r="2"/>
-                                </svg>
-                                <div style="font-weight: 500;">${sensor.trafficFlow}%</div>
-                                <div style="color: var(--text-light); font-size: 0.75rem;">Traffic</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }).join('');
-        }
-
-        // Chat functions
-        function updateChatInterface() {
-            renderChatMessages();
-        }
-
-        function renderChatMessages() {
-            const chatMessagesContainer = document.getElementById('chat-messages');
-            if (!chatMessagesContainer) return;
-            
-            // Keep existing messages, just update if needed
-            const existingMessages = chatMessagesContainer.querySelectorAll('.message');
-            if (existingMessages.length !== chatMessages.length) {
-                chatMessagesContainer.innerHTML = chatMessages.map(message => {
-                    if (message.type === 'assistant') {
-                        return `
-                            <div class="message assistant">
-                                <div class="message-avatar">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M12 8V4H8"/>
-                                        <rect width="16" height="12" x="4" y="8" rx="2"/>
-                                        <path d="M2 14h2"/>
-                                        <path d="M20 14h2"/>
-                                        <path d="M15 13v2"/>
-                                        <path d="M9 13v2"/>
-                                    </svg>
-                                </div>
-                                <div class="message-content">
-                                    <div class="message-bubble">
-                                        <p>${message.content}</p>
-                                    </div>
-                                    ${message.data ? renderMessageData(message.data) : ''}
-                                    <div class="message-time">${formatTime(message.timestamp)}</div>
-                                </div>
-                            </div>
-                        `;
-                    } else {
-                        return `
-                            <div class="message user">
-                                <div class="message-avatar">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                        <circle cx="12" cy="7" r="4"/>
-                                    </svg>
-                                </div>
-                                <div class="message-content">
-                                    <div class="message-bubble">
-                                        <p>${message.content}</p>
-                                    </div>
-                                    <div class="message-time">${formatTime(message.timestamp)}</div>
-                                </div>
-                            </div>
-                        `;
-                    }
-                }).join('');
-                
-                scrollChatToBottom();
-            }
-        }
-
-        function renderMessageData(data) {
-            if (!data) return '';
-            
-            let html = '<div style="background: #f8fafc; border-radius: 6px; padding: 1rem; margin-top: 0.5rem; font-size: 0.875rem;">';
-            
-            if (data.locations) {
-                html += `
-                    <div style="margin-bottom: 1rem;">
-                        <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.5rem; font-weight: 500;">Key Locations:</div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
-                            ${data.locations.map(location => `
-                                <span style="display: flex; align-items: center; gap: 0.25rem; background: white; border: 1px solid var(--border); border-radius: 4px; padding: 0.125rem 0.5rem; font-size: 0.75rem;">
-                                    📍 ${location}
-                                </span>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (data.metrics) {
-                html += `
-                    <div style="margin-bottom: 1rem;">
-                        <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.5rem; font-weight: 500;">Key Metrics:</div>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            ${data.metrics.map(metric => `
-                                <div style="display: flex; align-items: center; justify-content: space-between;">
-                                    <span>${metric.label}:</span>
-                                    <div style="display: flex; align-items: center; gap: 0.25rem;">
-                                        <span style="font-weight: 500;">${metric.value}</span>
-                                        <span style="color: ${metric.trend === 'up' ? 'var(--success)' : 'var(--error)'};">
-                                            ${metric.trend === 'up' ? '↗️' : '↘️'}
-                                        </span>
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            if (data.recommendations) {
-                html += `
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.5rem; font-weight: 500;">Recommendations:</div>
-                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                            ${data.recommendations.map(rec => `
-                                <div style="display: flex; align-items: flex-start; gap: 0.5rem;">
-                                    <span style="color: var(--success); margin-top: 0.125rem;">✓</span>
-                                    <span>${rec}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                `;
-            }
-            
-            html += '</div>';
-            return html;
-        }
-
-        function sendChatMessage() {
-            const input = document.getElementById('chat-input-field');
-            const message = input.value.trim();
-            
-            if (!message) return;
-            
-            // Add user message
-            chatMessages.push({
-                id: Date.now().toString(),
-                type: 'user',
-                content: message,
-                timestamp: new Date()
-            });
-            
-            input.value = '';
-            renderChatMessages();
-            
-            // Generate AI response
-            setTimeout(() => {
-                const response = generateAIResponse(message);
-                chatMessages.push(response);
-                renderChatMessages();
-            }, 1500);
-        }
-
-        function askQuestion(question) {
-            document.getElementById('chat-input-field').value = question;
-            sendChatMessage();
-        }
-
-        function generateAIResponse(query) {
-            const lowerQuery = query.toLowerCase();
-            
-            if (lowerQuery.includes('traffic')) {
-                return {
-                    id: (Date.now() + 1).toString(),
-                    type: 'assistant',
-                    content: 'Based on current traffic data analysis, here\'s what I found:',
-                    timestamp: new Date(),
-                    data: {
-                        locations: ['5th Avenue', 'Broadway', 'FDR Drive', 'West Side Highway'],
-                        metrics: [
-                            { label: 'Average Speed', value: '23 mph', trend: 'down' },
-                            { label: 'Congestion Level', value: '68%', trend: 'up' },
-                            { label: 'Incidents', value: '3 active', trend: 'down' }
-                        ],
-                        recommendations: [
-                            'Increase traffic light timing on 5th Avenue',
-                            'Deploy additional traffic officers to Broadway',
-                            'Consider alternative route suggestions via mobile apps'
-                        ]
-                    }
-                };
-            }
-            
-            if (lowerQuery.includes('air quality')) {
-                return {
-                    id: (Date.now() + 1).toString(),
-                    type: 'assistant',
-                    content: 'Air quality analysis for the past week shows the following trends:',
-                    timestamp: new Date(),
-                    data: {
-                        locations: ['Downtown', 'Central Park', 'Financial District', 'Brooklyn Bridge'],
-                        metrics: [
-                            { label: 'PM2.5 Average', value: '28 μg/m³', trend: 'down' },
-                            { label: 'AQI Score', value: 'Good (45)', trend: 'up' },
-                            { label: 'Pollution Sources', value: 'Traffic 65%', trend: 'down' }
-                        ],
-                        recommendations: [
-                            'Continue monitoring industrial areas',
-                            'Promote electric vehicle adoption',
-                            'Increase green spaces in high-traffic zones'
-                        ]
-                    }
-                };
-            }
-            
-            if (lowerQuery.includes('transport') || lowerQuery.includes('transit')) {
-                return {
-                    id: (Date.now() + 1).toString(),
-                    type: 'assistant',
-                    content: 'Public transportation analysis reveals these insights:',
-                    timestamp: new Date(),
-                    data: {
-                        locations: ['Outer Queens', 'South Brooklyn', 'Bronx Corridors', 'Staten Island'],
-                        metrics: [
-                            { label: 'Coverage Gap', value: '12 areas', trend: 'down' },
-                            { label: 'Average Wait Time', value: '8.2 min', trend: 'up' },
-                            { label: 'Ridership', value: '2.4M daily', trend: 'up' }
-                        ],
-                        recommendations: [
-                            'Extend subway lines to underserved areas',
-                            'Increase bus frequency during peak hours',
-                            'Implement bus rapid transit (BRT) corridors'
-                        ]
-                    }
-                };
-            }
-            
-            return {
-                id: (Date.now() + 1).toString(),
-                type: 'assistant',
-                content: 'I can help you analyze various aspects of urban planning including traffic patterns, air quality, public transportation, pedestrian flows, and infrastructure planning. Could you please specify what area you\'d like me to focus on?',
-                timestamp: new Date()
-            };
-        }
-
-        function scrollChatToBottom() {
-            const chatMessages = document.getElementById('chat-messages');
-            if (chatMessages) {
-                setTimeout(() => {
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }, 100);
-            }
-        }
-
-        // Real-time updates
-        function startRealTimeUpdates() {
-            setInterval(() => {
-                updateCityMetrics();
-                if (currentDashboardTab === 'overview') {
-                    updateMetricsGrid();
-                }
-            }, 5000);
-            
-            setInterval(() => {
-                updateSafetyData();
-                if (currentDashboardTab === 'safety') {
-                    updateSafetyPanel();
-                }
-            }, 3000);
-        }
-
-        function updateCityMetrics() {
-            Object.keys(cityMetrics).forEach(key => {
-                const metric = cityMetrics[key];
-                metric.change = (Math.random() - 0.5) * 10;
-                
-                if (key === 'traffic') {
-                    const newValue = Math.floor(Math.random() * 30 + 50);
-                    metric.value = `${newValue}%`;
-                    metric.progress = newValue;
-                    metric.status = newValue > 80 ? 'critical' : newValue > 65 ? 'warning' : 'normal';
-                }
-                
-                if (key === 'incidents') {
-                    const newValue = Math.floor(Math.random() * 20 + 15);
-                    metric.value = `${newValue}`;
-                    metric.progress = Math.min(newValue * 5, 100);
-                    metric.status = newValue > 30 ? 'critical' : newValue > 20 ? 'warning' : 'normal';
-                }
-            });
-        }
-
-        function updateSafetyData() {
-            sensorData.forEach(sensor => {
-                sensor.noiseLevel = Math.max(40, Math.min(100, sensor.noiseLevel + (Math.random() - 0.5) * 10));
-                sensor.crowdDensity = Math.max(0, Math.min(200, sensor.crowdDensity + (Math.random() - 0.5) * 20));
-                sensor.trafficFlow = Math.max(0, Math.min(100, sensor.trafficFlow + (Math.random() - 0.5) * 15));
-                sensor.status = Math.random() > 0.8 ? 'warning' : (Math.random() > 0.95 ? 'error' : 'normal');
-            });
-        }
-
-        // Utility functions
-        function formatTime(date) {
-            return new Intl.DateTimeFormat('en-US', {
-                hour: '2-digit',
-                minute: '2-digit'
-            }).format(date);
-        }
-                // Smart City Projects JavaScript - Scoped
-        (function() {
-            // Project data
-            const scpProjectData = {
-                'public-safety': {
-                    iconClass: 'scp-public-safety',
-                    icon: `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                    </svg>`,
-                    title: 'Project 1: Public Safety & Anomaly Detection',
-                    description: 'AI-powered real-time monitoring system that analyzes urban data streams to detect security threats, emergency situations, and unusual patterns for immediate response coordination',
-                    image: 'https://images.unsplash.com/photo-1724883782580-91360d20cc50?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaXR5JTIwc3VydmVpbGxhbmNlJTIwc2VjdXJpdHl8ZW58MXx8fHwxNzU5NDI1NDU0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-                    goals: [
-                        'Deploy AI-powered threat detection across urban areas',
-                        'Achieve sub-minute response time for critical incidents',
-                        'Integrate 15+ data sources for comprehensive monitoring',
-                        'Reduce false alarms by 85% through smart filtering'
-                    ]
-                },
-                'urban-planning': {
-                    iconClass: 'scp-urban-planning',
-                    icon: `<svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    </svg>`,
-                    title: 'Project 2: Smart Urban Planning Assistant',
-                    description: 'Intelligent planning platform that integrates real-time city data, traffic patterns, demographics, and environmental factors to optimize urban development and resource allocation',
-                    image: 'https://images.unsplash.com/photo-1634452639706-fad607966e14?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx1cmJhbiUyMHBsYW5uaW5nJTIwY2l0eXxlbnwxfHx8fDE3NTk0MDY2MjF8MA&ixlib=rb-4.1.0&q=80&w=1080',
-                    goals: [
-                        'Create unified digital twin of entire metropolitan area',
-                        'Enable real-time infrastructure optimization decisions',
-                        'Reduce urban congestion by 30% through smart routing',
-                        'Improve citizen satisfaction scores by 45%'
-                    ]
-                }
-            };
-
-            let scpCurrentTab = 'public-safety';
-
-            // Function to render project content
-            function scpRenderProject(tabName) {
-                const project = scpProjectData[tabName];
-                const goalsHTML = project.goals.map((goal, index) => `
-                    <li class="scp-goal-item">
-                        <span class="scp-goal-bullet"></span>
-                        <span class="scp-goal-text">${goal}</span>
-                    </li>
-                `).join('');
-
-                return `
-                    <div class="scp-project-grid">
-                        <div class="scp-project-content">
-                            <div class="scp-project-icon ${project.iconClass}">
-                                ${project.icon}
-                            </div>
-                            <h2 class="scp-project-title">${project.title}</h2>
-                            <div class="scp-project-badge">Project Concept</div>
-                            <p class="scp-project-description">${project.description}</p>
-                            <div class="scp-goals-section">
-                                <div class="scp-goals-header">
-                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                                    </svg>
-                                    <h3>Goals</h3>
-                                </div>
-                                <ul class="scp-goals-list">
-                                    ${goalsHTML}
-                                </ul>
-                            </div>
-                        </div>
-                        <div class="scp-project-image">
-                            <img src="${project.image}" alt="${project.title}">
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Function to switch tabs
-            function scpSwitchTab(tabName) {
-                if (tabName === scpCurrentTab) return;
-
-                const projectCard = document.getElementById('scpProjectCard');
-                const buttons = document.querySelectorAll('.scp-tab-button');
-
-                // Update button states
-                buttons.forEach(btn => {
-                    btn.classList.remove('scp-active', 'scp-public-safety', 'scp-urban-planning');
-                    const btnTab = btn.getAttribute('data-scp-tab');
-                    btn.classList.add('scp-' + btnTab);
-                    if (btnTab === tabName) {
-                        btn.classList.add('scp-active', 'scp-' + tabName);
-                    }
-                });
-
-                // Fade out current content
-                projectCard.classList.add('scp-fade-out');
-
-                // Wait for fade out, then update content
-                setTimeout(() => {
-                    scpCurrentTab = tabName;
-                    projectCard.innerHTML = scpRenderProject(tabName);
-                    projectCard.classList.remove('scp-fade-out');
-                    projectCard.classList.add('scp-content-enter');
-                    
-                    // Remove animation class after it completes
-                    setTimeout(() => {
-                        projectCard.classList.remove('scp-content-enter');
-                    }, 600);
-                }, 300);
-            }
-
-            // Add event listeners to tab buttons
-            document.querySelectorAll('.scp-tab-button').forEach(button => {
-                button.addEventListener('click', () => {
-                    const tabName = button.getAttribute('data-scp-tab');
-                    scpSwitchTab(tabName);
-                });
-            });
-
-            // Initial render
-            document.getElementById('scpProjectCard').innerHTML = scpRenderProject('public-safety');
-        })();
-
-        class TechnicalArchitectureAnimations {
-    constructor() {
-        this.observers = [];
-        this.animationDelays = new Map();
-        this.init();
-    }
-
-    init() {
-        // Wait for DOM to be fully loaded
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => {
-                this.setupAnimations();
-            });
-        } else {
-            this.setupAnimations();
-        }
-    }
-
-    setupAnimations() {
-        this.createObservers();
-        this.setupHoverEffects();
-    }
-
-    createObservers() {
-        // Hero section observer
-        this.createHeroObserver();
-        
-        // Pipeline section observer
-        this.createPipelineObserver();
-        
-        // Columns section observer
-        this.createColumnsObserver();
-        
-        // Demo section observer
-        this.createDemoObserver();
-    }
-
-    createHeroObserver() {
-        const heroElement = document.getElementById('tech-arch-hero');
-        if (!heroElement) return;
-
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('tech-arch-visible');
-                }
-            });
-        }, {
-            threshold: 0.3,
-            rootMargin: '0px 0px -10% 0px'
-        });
-
-        observer.observe(heroElement);
-        this.observers.push(observer);
-    }
-
-    createPipelineObserver() {
-        // Pipeline title observer
-        const titleElement = document.getElementById('tech-arch-pipeline-title');
-        if (titleElement) {
-            const titleObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('tech-arch-visible');
-                    }
-                });
-            }, { threshold: 0.3 });
-
-            titleObserver.observe(titleElement);
-            this.observers.push(titleObserver);
-        }
-
-        // Pipeline steps observer
-        const stepElements = document.querySelectorAll('.tech-arch-pipeline-step');
-        
-        const stepsObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const step = entry.target;
-                    const stepNumber = parseInt(step.dataset.step);
-                    const delay = parseFloat(step.dataset.delay) * 1000;
-
-                    setTimeout(() => {
-                        this.animatePipelineStep(step, stepNumber);
-                    }, delay);
-                }
-            });
-        }, {
-            threshold: 0.3,
-            rootMargin: '0px 0px -10% 0px'
-        });
-
-        stepElements.forEach(step => {
-            stepsObserver.observe(step);
-        });
-
-        this.observers.push(stepsObserver);
-    }
-
-    animatePipelineStep(step, stepNumber) {
-        // Animate the step container
-        step.classList.add('tech-arch-visible');
-
-        // Animate connecting line and arrow (if not last step)
-        if (stepNumber < 4) {
-            setTimeout(() => {
-                const line = step.querySelector('.tech-arch-connecting-line');
-                const arrow = step.querySelector('.tech-arch-arrow');
-                
-                if (line) line.classList.add('tech-arch-line-visible');
-                
-                setTimeout(() => {
-                    if (arrow) arrow.classList.add('tech-arch-arrow-visible');
-                }, 300);
-            }, 300);
-        }
-
-        // Animate step elements in sequence
-        setTimeout(() => {
-            const badge = step.querySelector('.tech-arch-step-badge');
-            if (badge) badge.classList.add('tech-arch-badge-visible');
-        }, 200);
-
-        setTimeout(() => {
-            const icon = step.querySelector('.tech-arch-step-icon');
-            if (icon) icon.classList.add('tech-arch-icon-visible');
-        }, 400);
-
-        setTimeout(() => {
-            const content = step.querySelector('.tech-arch-step-content');
-            if (content) content.classList.add('tech-arch-content-visible');
-        }, 600);
-    }
-
-    createColumnsObserver() {
-        const columnElements = document.querySelectorAll('.tech-arch-column');
-        
-        const columnsObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    const column = entry.target;
-                    const columnIndex = Array.from(columnElements).indexOf(column);
-                    
-                    setTimeout(() => {
-                        column.classList.add('tech-arch-visible');
-                        this.animateFeatureCards(column);
-                    }, columnIndex * 200);
-                }
-            });
-        }, {
-            threshold: 0.3,
-            rootMargin: '0px 0px -10% 0px'
-        });
-
-        columnElements.forEach(column => {
-            columnsObserver.observe(column);
-        });
-
-        this.observers.push(columnsObserver);
-    }
-
-    animateFeatureCards(column) {
-        const featureCards = column.querySelectorAll('.tech-arch-feature-card');
-        
-        featureCards.forEach((card, index) => {
-            const delay = parseFloat(card.dataset.delay) * 1000;
-            
-            setTimeout(() => {
-                card.classList.add('tech-arch-visible');
-            }, delay);
         });
     }
 
-    createDemoObserver() {
-        const demoContent = document.getElementById('tech-arch-demo');
-        const demoImage = document.getElementById('tech-arch-demo-image');
-        
-        const demoObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    if (entry.target === demoContent) {
-                        entry.target.classList.add('tech-arch-visible');
-                    } else if (entry.target === demoImage) {
-                        setTimeout(() => {
-                            entry.target.classList.add('tech-arch-visible');
-                        }, 300);
-                    }
-                }
-            });
-        }, {
-            threshold: 0.3,
-            rootMargin: '0px 0px -10% 0px'
+    const severityFilter = document.getElementById('severity-filter');
+    if (severityFilter) {
+        severityFilter.addEventListener('change', () => {
+            fetchBackendState();
         });
-
-        if (demoContent) demoObserver.observe(demoContent);
-        if (demoImage) demoObserver.observe(demoImage);
-        
-        this.observers.push(demoObserver);
-    }
-
-    setupHoverEffects() {
-        // Pipeline step hover effects
-        const pipelineSteps = document.querySelectorAll('.tech-arch-pipeline-step');
-        pipelineSteps.forEach(step => {
-            step.addEventListener('mouseenter', () => {
-                const badge = step.querySelector('.tech-arch-step-badge');
-                const icon = step.querySelector('.tech-arch-step-icon');
-                
-                if (badge && badge.classList.contains('tech-arch-badge-visible')) {
-                    badge.style.transform = 'scale(1.1)';
-                }
-                
-                if (icon && icon.classList.contains('tech-arch-icon-visible')) {
-                    icon.style.color = '#374151';
-                }
-            });
-
-            step.addEventListener('mouseleave', () => {
-                const badge = step.querySelector('.tech-arch-step-badge');
-                const icon = step.querySelector('.tech-arch-step-icon');
-                
-                if (badge) {
-                    badge.style.transform = 'scale(1)';
-                }
-                
-                if (icon) {
-                    icon.style.color = '#6b7280';
-                }
-            });
-        });
-
-        // Feature card hover effects
-        const featureCards = document.querySelectorAll('.tech-arch-feature-card');
-        featureCards.forEach(card => {
-            card.addEventListener('mouseenter', () => {
-                const icon = card.querySelector('.tech-arch-feature-icon');
-                const title = card.querySelector('.tech-arch-feature-title');
-                
-                if (icon) {
-                    icon.style.transform = 'scale(1.1)';
-                }
-                
-                if (title) {
-                    title.style.color = '#111827';
-                }
-                
-                card.style.backgroundColor = '#f9fafb';
-            });
-
-            card.addEventListener('mouseleave', () => {
-                const icon = card.querySelector('.tech-arch-feature-icon');
-                const title = card.querySelector('.tech-arch-feature-title');
-                
-                if (icon) {
-                    icon.style.transform = 'scale(1)';
-                }
-                
-                if (title) {
-                    title.style.color = '#374151';
-                }
-                
-                card.style.backgroundColor = 'white';
-            });
-        });
-    }
-
-    // Method to manually trigger animations (useful for testing)
-    triggerAnimation(elementId) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            element.classList.add('tech-arch-visible');
-        }
-    }
-
-    // Method to reset animations
-    resetAnimations() {
-        const animatedElements = document.querySelectorAll('.tech-arch-visible, .tech-arch-badge-visible, .tech-arch-icon-visible, .tech-arch-content-visible, .tech-arch-line-visible, .tech-arch-arrow-visible');
-        
-        animatedElements.forEach(element => {
-            element.classList.remove('tech-arch-visible', 'tech-arch-badge-visible', 'tech-arch-icon-visible', 'tech-arch-content-visible', 'tech-arch-line-visible', 'tech-arch-arrow-visible');
-        });
-    }
-
-    // Cleanup method
-    destroy() {
-        this.observers.forEach(observer => {
-            observer.disconnect();
-        });
-        this.observers = [];
     }
 }
 
-// Auto-initialize when script loads
-const techArchAnimations = new TechnicalArchitectureAnimations();
+/**
+ * Fetches current up-to-the-second Live City State from Backend API (GET /api/state).
+ */
+async function fetchBackendState() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/state`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
 
-// Expose to global scope for manual control if needed
-window.TechnicalArchitectureAnimations = TechnicalArchitectureAnimations;
-window.techArchAnimations = techArchAnimations;
+        if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+        }
 
-// Handle page visibility changes to restart animations if needed
-document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-        // Page became visible again, ensure animations work
-        setTimeout(() => {
-            techArchAnimations.setupAnimations();
-        }, 100);
+        const state = await response.json();
+        setConnectionStatus(true, state);
+        renderDashboard(state);
+    } catch (err) {
+        setConnectionStatus(false);
     }
-});
+}
 
-// Handle window resize to ensure proper animation triggers
-let resizeTimeout;
-window.addEventListener('resize', () => {
-    clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => {
-        // Recreate observers after resize to handle layout changes
-        techArchAnimations.destroy();
-        techArchAnimations.setupAnimations();
-    }, 250);
-});
+/**
+ * Updates UI Connection Indicators (Connected vs Backend Offline).
+ */
+function setConnectionStatus(connected, stateData = null) {
+    const statusBadge = document.getElementById('backend-status-badge');
+    const modeBadge = document.getElementById('data-mode-badge');
+    const errorBanner = document.getElementById('connection-error-banner');
+    const lastUpdatedText = document.getElementById('last-updated-text');
+
+    if (connected) {
+        isConnected = true;
+        if (statusBadge) {
+            statusBadge.className = 'status-indicator status-live';
+            statusBadge.textContent = '● CONNECTED';
+        }
+        if (errorBanner) {
+            errorBanner.classList.add('hidden');
+        }
+
+        if (stateData) {
+            const dataMode = stateData.data_mode || 'HYBRID';
+            if (modeBadge) {
+                modeBadge.textContent = `DATA_MODE: ${dataMode.toUpperCase()}`;
+            }
+
+            if (lastUpdatedText && stateData.last_updated) {
+                const dt = new Date(stateData.last_updated);
+                const timeStr = isNaN(dt.getTime()) ? stateData.last_updated : dt.toLocaleTimeString();
+                lastUpdatedText.textContent = `Updated: ${timeStr}`;
+            }
+        }
+    } else {
+        isConnected = false;
+        if (statusBadge) {
+            statusBadge.className = 'status-indicator status-offline';
+            statusBadge.textContent = '● BACKEND OFFLINE';
+        }
+        if (errorBanner) {
+            errorBanner.classList.remove('hidden');
+        }
+        if (lastUpdatedText) {
+            lastUpdatedText.textContent = 'Updated: Disconnected';
+        }
+    }
+}
+
+/**
+ * Renders Dashboard Views from Backend State Object.
+ */
+function renderDashboard(state) {
+    if (!state) return;
+
+    renderKPIs(state);
+    renderMapOverlay(state);
+    renderLiveFeed(state);
+    renderEnvironment(state);
+    renderZoneIntelligence(state);
+    renderInfrastructureConnectors(state);
+}
+
+/**
+ * Renders Top KPI Row from Backend API Values.
+ */
+function renderKPIs(state) {
+    const riskScore = state.overall_risk_score !== undefined ? state.overall_risk_score : '--';
+    const riskLevel = state.overall_risk_level || 'UNKNOWN';
+    const riskTrend = state.risk_trend || 'STABLE';
+    const eventsCount = state.recent_events ? state.recent_events.length : 0;
+    const anomaliesCount = state.active_anomalies ? state.active_anomalies.length : 0;
+    const correlationsCount = state.correlations ? state.correlations.length : 0;
+
+    const riskScoreEl = document.getElementById('kpi-risk-score');
+    if (riskScoreEl) {
+        riskScoreEl.innerHTML = `${riskScore} <span class="kpi-unit">/100</span>`;
+    }
+
+    const riskBadge = document.getElementById('kpi-risk-badge');
+    if (riskBadge) {
+        riskBadge.className = `severity-badge badge-${riskLevel.toLowerCase()}`;
+        riskBadge.textContent = `${riskLevel} RISK (${riskTrend})`;
+    }
+
+    const eventsEl = document.getElementById('kpi-events-count');
+    if (eventsEl) eventsEl.textContent = eventsCount;
+
+    const anomaliesEl = document.getElementById('kpi-anomalies-count');
+    if (anomaliesEl) anomaliesEl.textContent = anomaliesCount;
+
+    const correlationsEl = document.getElementById('kpi-correlations-count');
+    if (correlationsEl) correlationsEl.textContent = correlationsCount;
+
+    const healthEl = document.getElementById('kpi-system-health');
+    if (healthEl) {
+        healthEl.textContent = isConnected ? 'HEALTHY' : 'OFFLINE';
+        healthEl.style.color = isConnected ? '#10B981' : '#EF4444';
+    }
+}
+
+/**
+ * Renders GIS Map Markers for Recent Backend Events & Active Anomalies.
+ */
+function renderMapOverlay(state) {
+    if (!map) return;
+
+    // Clear existing markers
+    mapMarkers.forEach(m => map.removeLayer(m));
+    mapMarkers = [];
+
+    const recentEvents = state.recent_events || [];
+    const activeAnomalies = state.active_anomalies || [];
+
+    const severityFilter = document.getElementById('severity-filter')?.value || 'ALL';
+
+    recentEvents.forEach(ev => {
+        const data = ev.data || {};
+        const loc = ev.location || {};
+        const lat = loc.lat;
+        const lon = loc.lon;
+        const sev = (data.severity || ev.severity || 'LOW').toUpperCase();
+
+        if (severityFilter !== 'ALL' && sev !== severityFilter) return;
+
+        if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
+            const evId = data.event_id || ev.event_id || 'unk';
+            const evType = data.event_type || ev.event_type || 'incident';
+            const src = ev.source || 'unknown';
+            const desc = data.description || data.text || data.condition || evType;
+
+            const color = sev === 'CRITICAL' ? '#EF4444' : (sev === 'HIGH' ? '#F97316' : (sev === 'MODERATE' ? '#F59E0B' : '#10B981'));
+
+            const marker = L.circleMarker([lat, lon], {
+                radius: 8,
+                fillColor: color,
+                color: '#FFFFFF',
+                weight: 1.5,
+                opacity: 1,
+                fillOpacity: 0.85
+            }).addTo(map);
+
+            marker.bindPopup(`
+                <div style="font-family: sans-serif; font-size: 0.85rem; color: #0F172A;">
+                    <strong style="color: ${color};">[${sev}] ${evType.toUpperCase()}</strong><br>
+                    <strong>ID:</strong> ${evId}<br>
+                    <strong>Source:</strong> ${src}<br>
+                    <strong>Location:</strong> ${lat.toFixed(4)}, ${lon.toFixed(4)}<br>
+                    <p style="margin-top: 4px;">${desc}</p>
+                </div>
+            `);
+
+            mapMarkers.push(marker);
+        }
+    });
+}
+
+/**
+ * Renders Live Event Stream Feed from Backend events.
+ */
+function renderLiveFeed(state) {
+    const container = document.getElementById('event-feed-container');
+    const feedCountBadge = document.getElementById('feed-count-badge');
+    if (!container) return;
+
+    let events = state.recent_events || [];
+    const severityFilter = document.getElementById('severity-filter')?.value || 'ALL';
+
+    if (severityFilter !== 'ALL') {
+        events = events.filter(ev => {
+            const data = ev.data || {};
+            const sev = (data.severity || ev.severity || 'LOW').toUpperCase();
+            return sev === severityFilter;
+        });
+    }
+
+    if (feedCountBadge) {
+        feedCountBadge.textContent = `${events.length} Stream Events`;
+    }
+
+    if (events.length === 0) {
+        container.innerHTML = '<div class="empty-state">No telemetry stream events currently recorded for this filter.</div>';
+        return;
+    }
+
+    // Sort descending by timestamp
+    events = [...events].reverse();
+
+    let html = '';
+    events.forEach(ev => {
+        const data = ev.data || {};
+        const loc = ev.location || {};
+        const evId = data.event_id || ev.event_id || 'unk';
+        const evType = data.event_type || ev.event_type || 'incident';
+        const src = ev.source || 'unknown';
+        const sev = (data.severity || ev.severity || 'LOW').toUpperCase();
+        const badgeCls = `badge-${sev.toLowerCase()}`;
+        const desc = data.description || data.text || data.condition || data.message || evType;
+        
+        let tsStr = ev.timestamp || 'N/A';
+        try {
+            const dt = new Date(ev.timestamp);
+            if (!isNaN(dt.getTime())) tsStr = dt.toLocaleTimeString();
+        } catch (e) {}
+
+        const latLonStr = (loc.lat && loc.lon) ? `${loc.lat.toFixed(2)}, ${loc.lon.toFixed(2)}` : 'N/A';
+
+        html += `
+            <div class="event-item">
+                <div class="event-details">
+                    <div class="event-title">${evType.toUpperCase()} (ID: ${evId})</div>
+                    <div style="font-size: 0.85rem; color: #F8FAFC; margin: 0.15rem 0;">${desc}</div>
+                    <div class="event-meta">
+                        ⏱️ ${tsStr} | 📍 ${latLonStr} | Source: <strong>${src}</strong>
+                    </div>
+                </div>
+                <div>
+                    <span class="severity-badge ${badgeCls}">${sev}</span>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Renders Environmental & Weather Telemetry from Backend Data Sources.
+ */
+function renderEnvironment(state) {
+    const recentEvents = state.recent_events || [];
+
+    // Find latest weather and air quality events from backend
+    let weatherEv = null;
+    let airQualityEv = null;
+
+    for (let i = recentEvents.length - 1; i >= 0; i--) {
+        const ev = recentEvents[i];
+        if (!weatherEv && (ev.source === 'weather_api' || ev.source === 'open_meteo_weather')) {
+            weatherEv = ev.data || {};
+        }
+        if (!airQualityEv && (ev.source === 'air_quality_api' || ev.source === 'open_meteo_air_quality' || ev.source === 'environment_api')) {
+            airQualityEv = ev.data || {};
+        }
+    }
+
+    const tempEl = document.getElementById('env-temp');
+    if (tempEl) {
+        tempEl.textContent = weatherEv && weatherEv.temperature !== undefined ? `${weatherEv.temperature}°C` : 'Data unavailable';
+    }
+
+    const condEl = document.getElementById('env-condition');
+    if (condEl) {
+        condEl.textContent = weatherEv && weatherEv.condition ? weatherEv.condition : 'Data unavailable';
+    }
+
+    const aqiEl = document.getElementById('env-aqi');
+    if (aqiEl) {
+        aqiEl.textContent = airQualityEv && airQualityEv.air_quality_index !== undefined ? `${airQualityEv.air_quality_index} US AQI` : 'Data unavailable';
+    }
+
+    const pmEl = document.getElementById('env-pm');
+    if (pmEl) {
+        if (airQualityEv && (airQualityEv.pm2_5 !== undefined || airQualityEv.pm10 !== undefined)) {
+            pmEl.textContent = `${airQualityEv.pm2_5 || '--'} / ${airQualityEv.pm10 || '--'} µg/m³`;
+        } else {
+            pmEl.textContent = 'Data unavailable';
+        }
+    }
+
+    const windEl = document.getElementById('env-wind');
+    if (windEl) {
+        windEl.textContent = weatherEv && weatherEv.wind_speed !== undefined ? `${weatherEv.wind_speed} km/h` : 'Data unavailable';
+    }
+
+    const no2El = document.getElementById('env-no2');
+    if (no2El) {
+        no2El.textContent = airQualityEv && airQualityEv.nitrogen_dioxide !== undefined ? `${airQualityEv.nitrogen_dioxide} µg/m³` : 'Data unavailable';
+    }
+}
+
+/**
+ * Renders Geographic Zone Intelligence Cards from Backend state.zone_summaries.
+ */
+function renderZoneIntelligence(state) {
+    const container = document.getElementById('zone-summary-container');
+    if (!container) return;
+
+    const zoneSummaries = state.zone_summaries || {};
+    const zoneKeys = Object.keys(zoneSummaries);
+
+    if (zoneKeys.length === 0) {
+        container.innerHTML = '<div class="empty-state">No spatial zone intelligence generated yet.</div>';
+        return;
+    }
+
+    let html = '';
+    zoneKeys.forEach(zName => {
+        const zInfo = zoneSummaries[zName];
+        const riskLevel = zInfo.risk_level || 'LOW';
+        const riskScore = zInfo.risk_score || 0;
+        const badgeCls = `badge-${riskLevel.toLowerCase()}`;
+        const eventCount = zInfo.event_count || 0;
+        const criticalCount = zInfo.critical_count || 0;
+
+        html += `
+            <div class="zone-card">
+                <div style="font-weight: 700; font-size: 0.9rem;">${zName}</div>
+                <div style="margin: 0.35rem 0;">
+                    <span class="severity-badge ${badgeCls}">${riskLevel} (${riskScore} pts)</span>
+                </div>
+                <div style="font-size: 0.75rem; color: #94A3B8;">
+                    Total Events: <strong>${eventCount}</strong> | Critical: <strong style="color: #EF4444;">${criticalCount}</strong>
+                </div>
+            </div>
+        `;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Renders Data Connectors Infrastructure Status Cards from Backend data_freshness.
+ */
+function renderInfrastructureConnectors(state) {
+    const container = document.getElementById('connectors-status-grid');
+    if (!container) return;
+
+    const freshness = state.data_freshness || {};
+    const connectorKeys = Object.keys(freshness);
+
+    if (connectorKeys.length === 0) {
+        container.innerHTML = '<div class="empty-state">Infrastructure health status loading...</div>';
+        return;
+    }
+
+    let html = '';
+    connectorKeys.forEach(key => {
+        const info = freshness[key] || {};
+        const statusVal = info.status || 'UNKNOWN';
+        const modeVal = info.mode || 'LIVE';
+        const eventCount = info.event_count || 0;
+        
+        const isHealthy = statusVal === 'LIVE' || statusVal === 'READY' || statusVal === 'RUNNING';
+        const color = isHealthy ? '#10B981' : (statusVal === 'SIMULATION' ? '#38BDF8' : '#F59E0B');
+        const formattedName = key.replace(/_/g, ' ').toUpperCase();
+
+        html += `
+            <div class="connector-card">
+                <div style="font-size: 0.85rem; font-weight: 700; text-transform: capitalize;">📡 ${formattedName}</div>
+                <div style="color: ${color}; font-weight: 700; font-size: 0.85rem; margin: 0.25rem 0;">● ${statusVal} (${modeVal})</div>
+                <div style="font-size: 0.75rem; color: #94A3B8;">Events Processed: ${eventCount}</div>
+            </div>
+        `;
+    });
+
+    // Add Pathway Engine card
+    html += `
+        <div class="connector-card">
+            <div style="font-size: 0.85rem; font-weight: 700;">⚡ PATHWAY STREAMING ENGINE</div>
+            <div style="color: #10B981; font-weight: 700; font-size: 0.85rem; margin: 0.25rem 0;">● RUNNING</div>
+            <div style="font-size: 0.75rem; color: #94A3B8;">Stream Concats & UDF Evaluation Active</div>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+/**
+ * Fills Copilot Query Input Box when user clicks a suggested prompt button.
+ */
+function fillCopilotPrompt(promptText) {
+    const input = document.getElementById('copilot-input');
+    if (input) {
+        input.value = promptText;
+        input.focus();
+    }
+}
+
+/**
+ * Submits User Query to Backend POST /api/ask Endpoint and Renders Structured Copilot Response.
+ */
+async function submitCopilotQuery(event) {
+    event.preventDefault();
+    
+    const inputEl = document.getElementById('copilot-input');
+    const submitBtn = document.getElementById('copilot-submit-btn');
+    const resultsContainer = document.getElementById('copilot-results');
+
+    const question = inputEl ? inputEl.value.trim() : '';
+    if (!question) return;
+
+    if (submitBtn) submitBtn.disabled = true;
+    if (resultsContainer) {
+        resultsContainer.innerHTML = '<div class="copilot-notice">Analyzing real-time telemetry, executing grounded RAG context, and generating copilot decision support...</div>';
+    }
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/ask`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question: question })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error ${response.status}`);
+        }
+
+        const resData = await response.json();
+        renderCopilotResponse(question, resData);
+    } catch (err) {
+        if (resultsContainer) {
+            resultsContainer.innerHTML = `
+                <div class="copilot-response-card" style="border-color: #EF4444;">
+                    <strong style="color: #EF4444;">AI Copilot unavailable — Unable to reach backend server</strong>
+                    <p style="font-size: 0.85rem; color: #94A3B8;">Ensure backend server is running on ${API_BASE_URL} (python -m src.main)</p>
+                </div>
+            `;
+        }
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
+}
+
+/**
+ * Renders Structured AI Copilot Decision Support Response & Recommendations.
+ */
+function renderCopilotResponse(question, res) {
+    const resultsContainer = document.getElementById('copilot-results');
+    if (!resultsContainer) return;
+
+    const answer = res.answer || 'No answer generated.';
+    const riskLevel = res.risk_level || 'LOW';
+    const confidence = res.confidence || 'HIGH';
+    const recommendations = res.recommended_actions || [];
+    const evidence = res.evidence || [];
+    const affectedZones = res.affected_zones || [];
+
+    let recsHtml = '';
+    if (recommendations.length > 0) {
+        recsHtml = `
+            <div class="recommendations-box">
+                <strong>🛡️ HUMAN REVIEW RECOMMENDATIONS (Decision Support Only):</strong>
+                <ul>
+                    ${recommendations.map(r => `<li>${r}</li>`).join('')}
+                </ul>
+            </div>
+        `;
+    }
+
+    let evidenceHtml = '';
+    if (evidence.length > 0) {
+        let rowsHtml = evidence.map(ev => `
+            <tr>
+                <td><code>${ev.event_id || 'unk'}</code></td>
+                <td>${ev.source || 'unknown'}</td>
+                <td>${ev.zone || 'Zone A'}</td>
+                <td><span class="severity-badge badge-${(ev.severity || 'LOW').toLowerCase()}">${ev.severity || 'LOW'}</span></td>
+            </tr>
+        `).join('');
+
+        evidenceHtml = `
+            <div style="margin-top: 0.5rem;">
+                <strong style="font-size: 0.85rem; color: #38BDF8;">📌 Verified Audit Evidence Citations:</strong>
+                <table class="evidence-table">
+                    <thead>
+                        <tr>
+                            <th>Event ID</th>
+                            <th>Source</th>
+                            <th>Zone</th>
+                            <th>Severity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rowsHtml}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    }
+
+    resultsContainer.innerHTML = `
+        <div class="copilot-response-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 0.5rem;">
+                <span style="font-weight: 700; color: #38BDF8;">❓ Question: ${question}</span>
+                <span>
+                    <span class="severity-badge badge-${riskLevel.toLowerCase()}">${riskLevel} RISK</span>
+                    <small style="color: #94A3B8; margin-left: 0.5rem;">Confidence: ${confidence}</small>
+                </span>
+            </div>
+
+            <div class="copilot-ans-text">
+                💡 <strong>AI Copilot Grounded Analysis:</strong><br>${answer}
+            </div>
+
+            ${recsHtml}
+
+            ${affectedZones.length > 0 ? `<div style="font-size: 0.85rem;"><strong>Affected Zones:</strong> <code>${affectedZones.join(', ')}</code></div>` : ''}
+
+            ${evidenceHtml}
+        </div>
+    `;
+}

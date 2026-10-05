@@ -16,18 +16,20 @@ except ImportError:
 
 from .charts import render_time_series_chart, render_pie_chart, render_bar_chart
 from ..processing.city_state import CityStateManager
+from ..processing.shared_state import get_shared_city_state_manager, get_shared_rag_system
 
 logger = logging.getLogger(__name__)
 
 class Dashboard:
-    def __init__(self, processed_table: Table, anomalies_table: Table, rag_system, config: dict, city_state_manager: CityStateManager = None):
+    def __init__(self, processed_table: Table, anomalies_table: Table, rag_system=None, config: dict = None, city_state_manager: CityStateManager = None):
         self.processed_table = processed_table
         self.anomalies_table = anomalies_table
-        self.rag_system = rag_system
-        self.config = config
-        self.mode = config.get('mode', 'public_safety')
-        self.map_center = config.get('output', {}).get('map_center', [40.7128, -74.0060])
-        self.city_state_manager = city_state_manager or CityStateManager(config)
+        self.config = config or {}
+        self.rag_system = rag_system or get_shared_rag_system(self.config)
+        self.mode = self.config.get('mode', 'public_safety')
+        self.map_center = self.config.get('output', {}).get('map_center', [40.7128, -74.0060])
+        self.city_state_manager = city_state_manager or get_shared_city_state_manager(self.config)
+
         
         # Initialize session state variables
         if 'query_history' not in st.session_state:
@@ -313,15 +315,30 @@ class Dashboard:
         data = self.processed_table.collect()
         anomalies = self.anomalies_table.collect()
         
-        # Ingest events into CityStateManager
+        # Ingest static/streamed rows into CityStateManager
         for row in data:
             if isinstance(row, dict):
                 self.city_state_manager.ingest_event(row)
 
-        self.live_city_state = self.city_state_manager.get_live_city_state()
+        # Attempt to retrieve up-to-the-second live city state from HTTP API server or local shared manager
+        try:
+            import requests
+            webhook_port = self.config.get("webhook_port", 8000)
+            resp = requests.get(f"http://127.0.0.1:{webhook_port}/api/state", timeout=1)
+            if resp.status_code == 200:
+                self.live_city_state = resp.json()
+            else:
+                self.live_city_state = self.city_state_manager.get_live_city_state()
+        except Exception:
+            self.live_city_state = self.city_state_manager.get_live_city_state()
+
         st.session_state.live_city_state = self.live_city_state
 
-        data_df = pd.DataFrame(data) if data else pd.DataFrame(columns=['timestamp', 'source', 'data', 'location'])
+        # Merge recent streaming events from live_city_state into data DataFrame
+        recent_events = self.live_city_state.get("recent_events", []) if isinstance(self.live_city_state, dict) else []
+        combined_events = list(data) + [ev for ev in recent_events if ev not in data]
+
+        data_df = pd.DataFrame(combined_events) if combined_events else pd.DataFrame(columns=['timestamp', 'source', 'data', 'location'])
         anomalies_df = pd.DataFrame(anomalies) if anomalies else pd.DataFrame(columns=['timestamp', 'source', 'data', 'location'])
 
         # Augment severity logic onto DataFrame rows safely
@@ -338,6 +355,7 @@ class Dashboard:
                 data_df = data_df[data_df['source'] == st.session_state.source_filter]
 
         return data_df, anomalies_df
+
 
     def _compute_severity(self, row: pd.Series) -> str:
         row_data = row.get('data', {}) if isinstance(row.get('data'), dict) else {}
@@ -652,13 +670,23 @@ class Dashboard:
         if st.button("Submit Query to AI Copilot Engine", use_container_width=True):
             if query_input:
                 with st.spinner("Analyzing real-time telemetry, running RAG context, and generating copilot decision support..."):
-                    structured_res = self.rag_system.query_structured(query_input, city_state=live_state)
+                    try:
+                        import requests
+                        webhook_port = self.config.get("webhook_port", 8000)
+                        resp = requests.post(f"http://127.0.0.1:{webhook_port}/api/ask", json={"question": query_input}, timeout=5)
+                        if resp.status_code == 200:
+                            structured_res = resp.json()
+                        else:
+                            structured_res = self.rag_system.query_structured(query_input, city_state=live_state)
+                    except Exception:
+                        structured_res = self.rag_system.query_structured(query_input, city_state=live_state)
                     
                     st.session_state.query_history.append({
                         "query": query_input,
                         "response": structured_res,
                         "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S")
                     })
+
 
         if st.session_state.query_history:
             st.divider()

@@ -119,7 +119,21 @@ class RAGSystem:
             for c in correlations:
                 context_lines.append(f"- [{c.get('risk_level')}] {c.get('reason')} | Sources: {', '.join(c.get('sources', []))}")
 
+        recent_events = city_state.get("recent_events", [])
+        if recent_events:
+            context_lines.append("\n--- RECENT STREAMING TELEMETRY EVENTS ---")
+            for ev in recent_events[-10:]:
+                data = ev.get("data", {}) if isinstance(ev.get("data"), dict) else {}
+                ev_id = data.get("event_id", ev.get("event_id", "unk"))
+                src = ev.get("source", "unknown")
+                sev = str(data.get("severity", ev.get("severity", "LOW"))).upper()
+                ev_type = data.get("event_type", ev.get("event_type", "incident"))
+                zone = ev.get("location", {}).get("zone", "Zone A (Downtown)")
+                desc = data.get("description") or data.get("message") or data.get("text") or ev_type
+                context_lines.append(f"- Event ID: {ev_id} | Type: {ev_type} | Source: {src} | Zone: {zone} | Severity: {sev} | Details: {desc}")
+
         return "\n".join(context_lines)
+
 
     def query_structured(self, question: str, city_state: Optional[Dict[str, Any]] = None, k: int = 5) -> Dict[str, Any]:
         """
@@ -139,26 +153,63 @@ class RAGSystem:
         # Check if LLM provider is configured
         if not self.provider.is_configured():
             docs_str = ""
-            if self.documents:
-                relevant_docs = self.documents[-k:]
-                docs_str = "\n".join([f"Source: {doc.get('source')}, Data: {doc.get('data')}" for doc in relevant_docs])
+            q_terms = [t.lower() for t in question.split() if len(t) > 2]
+            matched_docs = []
+            for doc in reversed(self.documents):
+                doc_str = json.dumps(doc).lower()
+                if any(term in doc_str for term in q_terms):
+                    matched_docs.append(doc)
+                if len(matched_docs) >= k:
+                    break
+            
+            relevant_docs = matched_docs if matched_docs else (self.documents[-k:] if self.documents else [])
+            if relevant_docs:
+                docs_str = "\n".join([f"- Source: {doc.get('source')}, Data: {json.dumps(doc.get('data', {}))}" for doc in relevant_docs])
+
+            risk_lvl = city_state.get("overall_risk_level", "LOW") if city_state else "LOW"
+            risk_score = city_state.get("overall_risk_score", 0) if city_state else 0
+            recent_events = city_state.get("recent_events", []) if city_state else []
+
+            latest_event_summary = ""
+            if recent_events:
+                latest_ev = recent_events[-1]
+                d = latest_ev.get("data", {}) if isinstance(latest_ev.get("data"), dict) else {}
+                latest_event_summary = f" Latest event: {d.get('event_id', 'unk')} ({d.get('event_type', 'incident')}) with severity {d.get('severity', 'LOW')} ({d.get('description', 'N/A')})."
 
             ans_text = (
-                f"[RAG System Notice] OPENAI_API_KEY is missing or set to placeholder in .env.\n"
-                f"Live city intelligence and Pathway RAG context extraction are active (Retrieved {len(self.documents)} events).\n"
-                f"{docs_str}\n"
-                f"Set OPENAI_API_KEY to enable full LLM natural language synthesis."
+                f"[Grounded RAG Notice] OPENAI_API_KEY is not configured in .env.\n"
+                f"Live city risk index: {risk_score}/100 ({risk_lvl}).{latest_event_summary}\n"
+                f"Retrieved {len(relevant_docs)} live streaming events from RAG context index:\n"
+                f"{docs_str if docs_str else 'No events in active window.'}\n"
+                f"Set OPENAI_API_KEY to enable full OpenAI LLM natural language synthesis."
             )
 
-            return {
-                "error": "MISSING_API_KEY",
+            citations = []
+            for doc in relevant_docs:
+                d_data = doc.get("data", {}) if isinstance(doc.get("data"), dict) else {}
+                citations.append({
+                    "event_id": d_data.get("event_id", "evt_unk"),
+                    "source": doc.get("source", "unknown"),
+                    "timestamp": doc.get("timestamp", datetime.datetime.now(datetime.timezone.utc).isoformat()),
+                    "zone": doc.get("location", {}).get("zone", "Zone A (Downtown)"),
+                    "severity": d_data.get("severity", "LOW")
+                })
+
+            raw_resp = {
                 "answer": ans_text,
-                "risk_level": city_state.get("overall_risk_level", "UNKNOWN") if city_state else "UNKNOWN",
-                "confidence": "NONE",
+                "risk_level": risk_lvl,
+                "confidence": "MEDIUM",
                 "affected_zones": [z for z, info in (city_state.get("zone_summaries", {}).items() if city_state else []) if info.get("event_count", 0) > 0],
                 "key_factors": city_state.get("contributing_factors", []) if city_state else [],
-                "evidence": []
+                "evidence": citations[:5]
             }
+
+            return self.copilot_engine.process_copilot_request(
+                question=question,
+                city_state=city_state or {},
+                raw_llm_response=raw_resp
+            )
+
 
         # Build Context from CityState + Recent Documents
         city_state_str = self.prepare_city_state_context(city_state) if city_state else "No city state supplied."
@@ -187,8 +238,8 @@ Provide your structured JSON response strictly adhering to the JSON schema.
             system_instruction=SYSTEM_GROUNDED_INSTRUCTION
         )
 
-        # Attach real evidence citations if empty
-        if not response_dict.get("evidence") and relevant_docs:
+        # Attach real evidence citations from indexed documents
+        if relevant_docs:
             citations = []
             for doc in relevant_docs:
                 d_data = doc.get("data", {}) if isinstance(doc.get("data"), dict) else {}
@@ -200,6 +251,7 @@ Provide your structured JSON response strictly adhering to the JSON schema.
                     "severity": d_data.get("severity", "LOW")
                 })
             response_dict["evidence"] = citations[:5]
+
 
         # Enrich response via CopilotEngine (intents, Human-in-the-Loop recommendations, dashboard actions)
         return self.copilot_engine.process_copilot_request(

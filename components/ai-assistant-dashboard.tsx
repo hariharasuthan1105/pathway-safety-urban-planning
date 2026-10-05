@@ -84,45 +84,8 @@ const quickQueries: QuickQuery[] = [
   },
 ]
 
-// TODO: Phase 2+ Integration - Currently Demo Mock Interface
-// Real-time RAG + LLM synthesis is implemented in backend processing/rag_system.py.
-// Connect this component to the Pathway backend API endpoint in Phase 2+.
-const generateAIResponse = (query: string): string => {
-  const responses = {
-    traffic: [
-      "[Simulated Response] Current traffic flow is moderate with some congestion on Main Street. Average speed is 28 mph, down 15% from normal.",
-      "[Simulated Response] Traffic conditions are optimal in most areas. The downtown core shows light congestion with an average speed of 35 mph.",
-    ],
-    safety: [
-      "[Simulated Response] There are currently 3 active incidents: 1 traffic accident on 5th Avenue, 1 noise complaint, and 1 medical emergency.",
-      "[Simulated Response] Public safety status is stable. Response times are averaging 4.2 minutes.",
-    ],
-    planning: [
-      "[Simulated Response] Air quality index is currently 67 (moderate). PM2.5 levels are elevated in the industrial district.",
-      "[Simulated Response] Based on current data, estimated travel time is 23 minutes via Highway 101.",
-    ],
-    general: [
-      "[Simulated Response] City energy consumption is at 78% of capacity. Renewable sources are providing 42% of current demand.",
-      "[Simulated Response] I've analyzed the latest urban data. Specify an area like transportation or safety.",
-    ],
-  }
 
-  const category =
-    query.toLowerCase().includes("traffic") || query.toLowerCase().includes("route")
-      ? "traffic"
-      : query.toLowerCase().includes("safety") ||
-          query.toLowerCase().includes("incident") ||
-          query.toLowerCase().includes("emergency")
-        ? "safety"
-        : query.toLowerCase().includes("air") ||
-            query.toLowerCase().includes("planning") ||
-            query.toLowerCase().includes("quality")
-          ? "planning"
-          : "general"
 
-  const categoryResponses = responses[category]
-  return categoryResponses[Math.floor(Math.random() * categoryResponses.length)]
-}
 
 
 export function AIAssistantDashboard() {
@@ -161,18 +124,40 @@ export function AIAssistantDashboard() {
     setInputValue("")
     setIsTyping(true)
 
-    // Simulate AI response delay
-    setTimeout(() => {
+    try {
+      const response = await fetch("http://localhost:8000/api/ask", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: content }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+
+      const resData = await response.json()
+      const aiContent = resData.answer || "No answer returned by backend."
+
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: "assistant",
-        content: generateAIResponse(content),
+        content: aiContent,
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, aiResponse])
+    } catch (err) {
+      const errorResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        type: "assistant",
+        content: "AI Copilot unavailable — Unable to reach backend server (http://localhost:8000/api/ask). Ensure backend is running via `python -m src.main`.",
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, errorResponse])
+    } finally {
       setIsTyping(false)
-    }, 1500)
+    }
   }
+
 
   const handleQuickQuery = (query: QuickQuery) => {
     handleSendMessage(query.query)

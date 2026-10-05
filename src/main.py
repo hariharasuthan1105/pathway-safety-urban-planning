@@ -1,6 +1,7 @@
 import argparse
 import sys
 import os
+import time
 import yaml
 import logging
 from pathlib import Path
@@ -26,7 +27,7 @@ except ImportError:
     from src.pathway_compat import pw
 
 from src.data_sources import DataSourceManager
-from src.processing import AnomalyDetector, RAGSystem, CityStateManager
+from src.processing import AnomalyDetector, RAGSystem, CityStateManager, get_shared_city_state_manager, get_shared_rag_system, ingest_runtime_event
 from src.app import Dashboard
 from src.webhook_server import start_webhook_server, register_ai_query_handler
 
@@ -71,6 +72,10 @@ def main():
     data_mode = os.getenv("DATA_MODE", config.get("data_mode", "hybrid")).upper()
     logger.info(f"System initialized in mode: {config.get('mode', args.mode)} | DATA_MODE: {data_mode}")
     
+    # Initialize shared singletons
+    city_state_manager = get_shared_city_state_manager(config)
+    rag_system = get_shared_rag_system(config)
+
     # Start HTTP Webhook server in background thread
     try:
         webhook_port = int(os.getenv("WEBHOOK_PORT", config.get("webhook_port", 8000)))
@@ -92,11 +97,6 @@ def main():
     logger.info("Initializing anomaly detector...")
     anomaly_detector = AnomalyDetector(config)
     
-    logger.info("Initializing City State Intelligence Engine...")
-    city_state_manager = CityStateManager(config)
-
-    logger.info("Initializing RAG system...")
-    rag_system = RAGSystem(config)
     if rag_system.has_valid_key:
         logger.info("LLM configuration detected: Valid OpenAI key found.")
     else:
@@ -104,8 +104,10 @@ def main():
     
     # Register AI query handler for POST /api/ask endpoint
     def handle_ai_query(question: str) -> dict:
-        live_state = city_state_manager.get_live_city_state()
-        return rag_system.query_structured(question, city_state=live_state)
+        mgr = get_shared_city_state_manager(config)
+        rag = get_shared_rag_system(config)
+        live_state = mgr.get_live_city_state()
+        return rag.query_structured(question, city_state=live_state)
 
     register_ai_query_handler(handle_ai_query)
     
@@ -127,12 +129,20 @@ def main():
         location=combined_table.location
     )
     
-    # Ingest processed rows into RAG System & City State Manager
-    for row in processed_table.collect():
-        city_state_manager.ingest_event(row)
-        rag_system.add_document(row.get('data', {}), row.get('source', ''), row.get('location', {}))
-        logger.info(f"Event processed from source: {row.get('source')}")
-    
+    # Ingest processed rows from Pathway table sink into RAG System & City State Manager
+    def pathway_sink(row: dict):
+        if isinstance(row, dict):
+            ingest_runtime_event(row, config)
+            logger.info(f"[Pathway Stream Sink] Event processed from source: {row.get('source', 'unknown')}")
+
+    if hasattr(processed_table, "subscribe"):
+        processed_table.subscribe(pathway_sink)
+    elif hasattr(pw.io, "subscribe"):
+        pw.io.subscribe(processed_table, pathway_sink)
+
+    # Start Pathway streaming execution
+    pw.run()
+
     # Filter anomalies
     anomalies_table = processed_table.filter(
         pw.this.data.get("anomaly", False)
@@ -142,11 +152,17 @@ def main():
     pw.io.csv.write(anomalies_table, "anomalies.csv")
     pw.io.json.write(processed_table, "processed_data.json")
     
-    # Start dashboard
+    # Start dashboard and keep backend streaming engine active
     logger.info("Frontend/API starting...")
     dashboard = Dashboard(processed_table, anomalies_table, rag_system, config, city_state_manager=city_state_manager)
     dashboard.run()
-    logger.info("Application shutdown completed cleanly.")
+
+    logger.info("Server listening for events on http://localhost:8000 ...")
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        logger.info("Application shutdown completed cleanly.")
 
 if __name__ == "__main__":
     main()
