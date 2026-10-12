@@ -11,6 +11,7 @@ import time
 import json
 import logging
 import threading
+import inspect
 from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("pathway_compat")
@@ -85,13 +86,43 @@ except ImportError:
                 raise AttributeError(name)
             return ColumnExpression(name)
 
-        def subscribe(self, callback: Callable[[Dict[str, Any]], None]):
+        def _invoke_subscriber(self, sub: Callable, row: Dict[str, Any]):
+            """
+            Invokes subscriber callback adhering to Pathway 0.33.0 contract:
+            (key, row, time, is_addition) or (key=..., row=..., time=..., is_addition=...),
+            while maintaining backward compatibility with single-argument callbacks (row).
+            """
+            key = row.get("id") or str(id(row))
+            now_ms = int(time.time() * 1000)
+            try:
+                sig = inspect.signature(sub)
+                params = list(sig.parameters.values())
+                has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
+                param_names = [p.name for p in params]
+                if "key" in param_names or has_var_keyword:
+                    sub(key=key, row=row, time=now_ms, is_addition=True)
+                elif len(params) == 4:
+                    sub(key, row, now_ms, True)
+                elif len(params) == 1:
+                    sub(row)
+                else:
+                    try:
+                        sub(key=key, row=row, time=now_ms, is_addition=True)
+                    except TypeError:
+                        sub(row)
+            except Exception:
+                try:
+                    sub(key=key, row=row, time=now_ms, is_addition=True)
+                except TypeError:
+                    sub(row)
+
+        def subscribe(self, callback: Callable):
             """Registers a sink callback that receives streaming events output by this Pathway table."""
             if callback not in self.subscribers:
                 self.subscribers.append(callback)
             for row in list(self._rows):
                 try:
-                    callback(row)
+                    self._invoke_subscriber(callback, row)
                 except Exception as e:
                     logger.warning(f"Subscriber error on replay: {e}")
 
@@ -117,7 +148,7 @@ except ImportError:
             # Notify direct sink subscribers
             for sub in list(self.subscribers):
                 try:
-                    sub(processed_row)
+                    self._invoke_subscriber(sub, processed_row)
                 except Exception as e:
                     logger.warning(f"Error in Pathway sink subscriber: {e}")
 
@@ -257,7 +288,7 @@ except ImportError:
         jsonlines = JSONIO()
 
         @staticmethod
-        def subscribe(table: Table, callback: Callable[[Dict[str, Any]], None]):
+        def subscribe(table: Table, callback: Callable):
             table.subscribe(callback)
 
     def sleep(seconds: float):

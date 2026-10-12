@@ -61,8 +61,39 @@ def combine_pathway_streams(streams: list) -> pw.Table:
 
     return pw.Table.concat(*streams)
 
-def load_config(config_path: str) -> dict:
+def make_pathway_sink(config: dict):
+    """
+    Factory creating the Pathway streaming sink callback for pw.io.subscribe.
+    Accepts native Pathway 0.33.0 keyword/positional arguments:
+    (key, row, time, is_addition) or kwargs, while preserving backwards compatibility
+    with single-argument (row) invocations.
+    """
+    def pathway_sink(key=None, row=None, time=None, is_addition=True, *args, **kwargs):
+        # Resolve row whether passed as keyword, 4 positionals (key, row, time, is_addition), or 1 positional (row)
+        if row is None and isinstance(key, dict):
+            event_row = key
+        elif row is not None:
+            event_row = row
+        else:
+            event_row = kwargs.get("row", key)
 
+        if not is_addition:
+            # Pathway emits deletions with is_addition=False; only process additions
+            return
+
+        if not isinstance(event_row, dict) and hasattr(event_row, "items"):
+            try:
+                event_row = dict(event_row)
+            except Exception:
+                pass
+
+        if isinstance(event_row, dict):
+            ingest_runtime_event(event_row, config)
+            logger.info(f"[Pathway Stream Sink] Event processed from source: {event_row.get('source', 'unknown')}")
+
+    return pathway_sink
+
+def load_config(config_path: str) -> dict:
     path = Path(config_path)
     if not path.exists():
         example_path = Path(f"{config_path}.example")
@@ -161,20 +192,6 @@ def main():
         location=combined_table.location
     )
     
-    # Ingest processed rows from Pathway table sink into RAG System & City State Manager
-    def pathway_sink(row: dict):
-        if isinstance(row, dict):
-            ingest_runtime_event(row, config)
-            logger.info(f"[Pathway Stream Sink] Event processed from source: {row.get('source', 'unknown')}")
-
-    if hasattr(processed_table, "subscribe"):
-        processed_table.subscribe(pathway_sink)
-    elif hasattr(pw.io, "subscribe"):
-        pw.io.subscribe(processed_table, pathway_sink)
-
-    # Start Pathway streaming execution
-    pw.run()
-
     # Filter anomalies
     anomalies_table = processed_table.filter(
         pw.this.data.get("anomaly", False)
@@ -183,6 +200,17 @@ def main():
     # Output results
     pw.io.csv.write(anomalies_table, "anomalies.csv")
     pw.io.json.write(processed_table, "processed_data.json")
+
+    # Ingest processed rows from Pathway table sink into RAG System & City State Manager
+    pathway_sink = make_pathway_sink(config)
+
+    if hasattr(pw.io, "subscribe"):
+        pw.io.subscribe(processed_table, pathway_sink)
+    elif hasattr(processed_table, "subscribe"):
+        processed_table.subscribe(pathway_sink)
+
+    # Start Pathway streaming execution
+    pw.run()
     
     # Start dashboard (if Streamlit is available) and keep backend streaming engine active
     logger.info(f"Backend API server active on http://{args.host}:{webhook_port}")
