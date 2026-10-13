@@ -24,7 +24,7 @@ class GroqProvider(BaseLLMProvider):
     """Groq API implementation with structured JSON extraction."""
     def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, temperature: float = 0.2):
         self.api_key = api_key or os.getenv("GROQ_API_KEY") or ""
-        self.model = model or os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
+        self.model = model or os.getenv("GROQ_MODEL") or os.getenv("LLM_MODEL") or "qwen/qwen3.8-27b"
         self.temperature = temperature
 
     def is_configured(self) -> bool:

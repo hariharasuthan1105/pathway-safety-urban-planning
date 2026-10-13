@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { fetchApi } from '../lib/api';
+import { config } from '../lib/config';
 import type { CitySummary, TelemetryEvent, UrbanState } from '../types';
 
 export const eventKey = (e: TelemetryEvent) => e.event_id || `${e.source}:${e.timestamp}:${JSON.stringify(e.location)}`;
@@ -30,7 +31,34 @@ export function TelemetryProvider({children}:{children:ReactNode}) {
     }catch(e){if(mounted.current)setError(e instanceof Error?e.message:'Telemetry unavailable');}
     finally{pending.current=false;if(mounted.current)setLoading(false);}
   },[]);
-  useEffect(()=>{mounted.current=true;void refresh();const id=setInterval(refresh,8000);return()=>{mounted.current=false;clearInterval(id);};},[refresh]);
+  useEffect(()=>{
+    mounted.current=true;
+    void refresh();
+    const pollId=setInterval(()=>void refresh(), 8000);
+    let eventSource: EventSource | null = null;
+    try {
+      const sseOrigin = config.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
+      if (sseOrigin && typeof EventSource !== 'undefined') {
+        eventSource = new EventSource(`${sseOrigin}/api/stream`, { withCredentials: true });
+        eventSource.addEventListener('state_update', () => {
+          if (mounted.current) void refresh();
+        });
+        eventSource.onerror = () => {
+          // Keep poll interval active; browser EventSource will automatically retry connecting
+        };
+      }
+    } catch {
+      // EventSource instantiation failed; falling back to interval polling
+    }
+    return ()=>{
+      mounted.current=false;
+      clearInterval(pollId);
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+    };
+  },[refresh]);
   const cities=Object.values(state?.city_summaries||{});
   const selectCity=useCallback((name:string)=>{setCityName(name);setSelectedEvent(null);setRegion('ALL');},[]);
   const selectEvent=useCallback((e:TelemetryEvent)=>{setSelectedEvent(e);setCityName(e.location?.city||null);setRegion('ALL');},[]);

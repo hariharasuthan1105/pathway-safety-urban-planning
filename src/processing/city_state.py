@@ -11,7 +11,7 @@ import os
 import logging
 import threading
 from functools import wraps
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from .zones import ZoneManager
 from .rolling_windows import RollingWindowAggregator
@@ -46,27 +46,82 @@ class CityStateManager:
         self.correlator = CrossSourceCorrelator(time_window_minutes=15)
         self.anomaly_detector = AnomalyDetector(self.config)
 
-        self.source_freshness: Dict[str, Dict[str, Any]] = {
-            "open_meteo_weather": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "LIVE"},
-            "open_meteo_air_quality": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "LIVE"},
-            "webhook_ingestion": {"last_update": None, "status": "WAITING", "event_count": 0, "mode": "EVENT_DRIVEN"},
-            "simulation_generator": {"last_update": None, "status": "WAITING", "event_count": 0, "mode": "SIMULATED"}
-        }
         feed_url = (self.config.get("data_sources", {}).get("transit", {}).get("feed_url") or os.getenv("GTFS_FEED_URL") or "").strip()
-        self.source_freshness["gtfs_transit_api"] = {
-            "last_update": None, "status": "WAITING" if feed_url else "NOT_CONFIGURED",
-            "event_count": 0, "mode": "LIVE" if feed_url else "NOT_CONFIGURED"}
+        self.source_freshness: Dict[str, Dict[str, Any]] = {
+            "weather_api": {
+                "source_id": "weather_api", "mode": "LIVE", "connector_status": "WAITING",
+                "observation_status": "WAITING", "status": "WAITING", "last_update": None,
+                "observed_at": None, "received_at": None, "last_checked_at": None,
+                "event_count": 0, "freshness_age_seconds": None, "error_code": None
+            },
+            "air_quality_api": {
+                "source_id": "air_quality_api", "mode": "LIVE", "connector_status": "WAITING",
+                "observation_status": "WAITING", "status": "WAITING", "last_update": None,
+                "observed_at": None, "received_at": None, "last_checked_at": None,
+                "event_count": 0, "freshness_age_seconds": None, "error_code": None
+            },
+            "traffic_simulation": {
+                "source_id": "traffic_simulation", "mode": "SIMULATED", "connector_status": "WAITING",
+                "observation_status": "WAITING", "status": "WAITING", "last_update": None,
+                "observed_at": None, "received_at": None, "last_checked_at": None,
+                "event_count": 0, "freshness_age_seconds": None, "error_code": None
+            },
+            "webhook_ingestion": {
+                "source_id": "webhook_ingestion", "mode": "EVENT_DRIVEN", "connector_status": "READY",
+                "observation_status": "WAITING", "status": "WAITING", "last_update": None,
+                "observed_at": None, "received_at": None, "last_checked_at": None,
+                "event_count": 0, "freshness_age_seconds": None, "error_code": None
+            },
+            "gtfs_transit_api": {
+                "source_id": "gtfs_transit_api", "mode": "LIVE" if feed_url else "NOT_CONFIGURED",
+                "connector_status": "WAITING" if feed_url else "NOT_CONFIGURED",
+                "observation_status": "WAITING" if feed_url else "NOT_CONFIGURED",
+                "status": "WAITING" if feed_url else "NOT_CONFIGURED", "last_update": None,
+                "observed_at": None, "received_at": None, "last_checked_at": None,
+                "event_count": 0, "freshness_age_seconds": None, "error_code": None
+            },
+            "simulation_generator": {
+                "source_id": "simulation_generator", "mode": "SIMULATED", "connector_status": "WAITING",
+                "observation_status": "WAITING", "status": "WAITING", "last_update": None,
+                "observed_at": None, "received_at": None, "last_checked_at": None,
+                "event_count": 0, "freshness_age_seconds": None, "error_code": None
+            }
+        }
         self.intelligence_feed: List[Dict[str, Any]] = []
 
-    def update_source_freshness(self, source_name: str, mode: str = "LIVE", status: str = "LIVE"):
+    def update_source_freshness(self, source_name: str, mode: str = "LIVE", status: str = "LIVE",
+                                observed_at: Optional[str] = None, received_at: Optional[str] = None,
+                                last_checked_at: Optional[str] = None, error_code: Optional[str] = None):
         now_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
         if source_name not in self.source_freshness:
-            self.source_freshness[source_name] = {"last_update": now_str, "status": status, "event_count": 0, "mode": mode}
-        
+            self.source_freshness[source_name] = {
+                "source_id": source_name,
+                "mode": mode,
+                "connector_status": status,
+                "observation_status": status,
+                "status": status,
+                "last_update": now_str,
+                "observed_at": observed_at or now_str,
+                "received_at": received_at or now_str,
+                "last_checked_at": last_checked_at or now_str,
+                "event_count": 0,
+                "freshness_age_seconds": 0,
+                "error_code": error_code
+            }
+
         entry = self.source_freshness[source_name]
         entry["last_update"] = now_str
         entry["status"] = status
+        entry["observation_status"] = status
         entry["mode"] = mode
+        if observed_at:
+            entry["observed_at"] = observed_at
+        if received_at:
+            entry["received_at"] = received_at
+        if last_checked_at:
+            entry["last_checked_at"] = last_checked_at
+        if error_code is not None:
+            entry["error_code"] = error_code
         entry["event_count"] += 1
 
     @synchronized
@@ -85,10 +140,21 @@ class CityStateManager:
         
         # Track source freshness
         source = event.get("source", "unknown")
-        if source in {"traffic_simulation", "twitter", "police_scanner", "city_sensors", "simulation_generator", "transit_simulation", "planning_traffic_simulation", "environment_simulation"}:
-            event["data"]["mode"] = "SIMULATED"
-        data_mode = event.get("mode", event.get("data", {}).get("mode", "LIVE")).upper()
-        self.update_source_freshness(source_name=source, mode=data_mode, status="LIVE")
+        simulated_sources = {"traffic_simulation", "twitter", "police_scanner", "city_sensors",
+                             "simulation_generator", "transit_simulation",
+                             "planning_traffic_simulation", "environment_simulation"}
+        if source in simulated_sources:
+            if isinstance(event.get("data"), dict):
+                event["data"]["mode"] = "SIMULATED"
+            data_mode = "SIMULATED"
+        else:
+            data_mode = event.get("mode", event.get("data", {}).get("mode", "LIVE")).upper()
+
+        data_dict = event.get("data", {}) if isinstance(event.get("data"), dict) else {}
+        obs_time = data_dict.get("observed_at") or event.get("timestamp")
+        recv_time = data_dict.get("received_at") or datetime.datetime.now(datetime.timezone.utc).isoformat()
+        self.update_source_freshness(source_name=source, mode=data_mode, status="LIVE",
+                                    observed_at=obs_time, received_at=recv_time)
 
         # Process through anomaly UDF
         processed_event = self.anomaly_detector.process(event)
@@ -231,13 +297,20 @@ class CityStateManager:
         freshness_report = {}
         for src, info in self.source_freshness.items():
             freshness_copy = dict(info)
-            if freshness_copy["last_update"]:
+            ts = freshness_copy.get("observed_at") or freshness_copy.get("last_update")
+            if ts:
                 try:
-                    last_dt = datetime.datetime.fromisoformat(freshness_copy["last_update"].replace("Z", "+00:00"))
-                    if (now - last_dt).total_seconds() > 600:
-                        freshness_copy["status"] = "STALE"
+                    last_dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                    age = (now - last_dt).total_seconds()
+                    freshness_copy["freshness_age_seconds"] = max(0, int(age))
+                    if age > 600:
+                        freshness_copy["observation_status"] = "STALE"
+                        if freshness_copy.get("status") in {"LIVE", "RUNNING"}:
+                            freshness_copy["status"] = "STALE"
                 except Exception:
-                    pass
+                    freshness_copy["freshness_age_seconds"] = None
+            else:
+                freshness_copy["freshness_age_seconds"] = None
             freshness_report[src] = freshness_copy
 
         # Generate fresh intelligence feed alerts

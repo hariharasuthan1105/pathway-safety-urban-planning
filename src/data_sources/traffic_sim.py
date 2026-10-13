@@ -229,7 +229,7 @@ class TrafficSimulationSource(DataSource):
                 incident_prob = round(min(0.99, state["congestion_level"] * 0.8), 2)
                 severity = "CRITICAL" if state["congestion_level"] > 0.85 else ("HIGH" if state["congestion_level"] > 0.65 else ("MODERATE" if state["congestion_level"] > 0.40 else "LOW"))
 
-                self.status = "LIVE"
+                self.status = "SIMULATED"
                 self.last_updated = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S UTC")
 
                 event = create_city_event(

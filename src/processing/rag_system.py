@@ -51,9 +51,9 @@ class RAGSystem:
         else:
             self.has_valid_key = True
 
-        self.model_name = llm_config.get('model') or os.getenv('LLM_MODEL', 'llama-3.3-70b-versatile')
-        if self.model_name in ['gpt-3.5-turbo', 'gpt-4']:
-            self.model_name = 'llama-3.3-70b-versatile'
+        self.model_name = os.getenv('GROQ_MODEL') or os.getenv('LLM_MODEL') or llm_config.get('model') or 'qwen/qwen3.8-27b'
+        if self.model_name in ['gpt-3.5-turbo', 'gpt-4', 'llama-3.3-70b-versatile'] and not os.getenv('GROQ_MODEL'):
+            self.model_name = 'qwen/qwen3.8-27b'
 
         self.temperature = float(llm_config.get('temperature', 0.2))
 
