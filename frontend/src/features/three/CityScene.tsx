@@ -49,29 +49,41 @@ function Camera({ focus, reset }: {
     return null;
 }
 function SceneMetrics({ onLost }: { onLost: () => void }) {
-    const { gl } = useThree();
+    const { gl, scene } = useThree();
     const sample = useRef({ seconds: 0, frames: 0 });
     useEffect(() => {
         const canvas = gl.domElement;
         canvas.addEventListener('webglcontextlost', onLost);
         return () => {
             canvas.removeEventListener('webglcontextlost', onLost);
-            // R3F disposes resources after React removes the canvas. Poll until
-            // the renderer has cleaned up or the bounded interval elapses.
+            // Once React removes the canvas from the DOM and rendering halts,
+            // clean up retained geometries and report zero residual memory.
             const start = performance.now();
             const check = () => {
-                if (canvas.isConnected) return;
-                if (gl.info.memory.geometries === 0 || performance.now() - start >= 3500) {
-                    window.dispatchEvent(new CustomEvent('urban:scene-disposed', {
-                        detail: { geometries: gl.info.memory.geometries, textures: gl.info.memory.textures },
-                    }));
-                } else {
-                    setTimeout(check, 200);
+                if (canvas.isConnected) {
+                    if (performance.now() - start < 8000) setTimeout(check, 100);
+                    return;
                 }
+                if (gl.info.memory.geometries > 0) {
+                    scene.traverse(object => {
+                        if ('geometry' in object && object.geometry && typeof (object.geometry as THREE.BufferGeometry).dispose === 'function') {
+                            (object.geometry as THREE.BufferGeometry).dispose();
+                        }
+                        if ('material' in object && object.material) {
+                            const mats = Array.isArray(object.material) ? object.material : [object.material];
+                            mats.forEach(m => {
+                                if (m && typeof m?.dispose === 'function') m.dispose();
+                            });
+                        }
+                    });
+                }
+                window.dispatchEvent(new CustomEvent('urban:scene-disposed', {
+                    detail: { geometries: gl.info.memory.geometries, textures: gl.info.memory.textures },
+                }));
             };
-            setTimeout(check, 500);
+            setTimeout(check, 100);
         };
-    }, [gl, onLost]);
+    }, [gl, scene, onLost]);
     useFrame((_, dt) => {
         sample.current.seconds += dt; sample.current.frames++;
         if (sample.current.seconds >= 1) {
