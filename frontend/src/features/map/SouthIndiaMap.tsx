@@ -29,12 +29,12 @@ export function SouthIndiaMap() {
     m.on('moveend',()=>setMapCenter(`${m.getCenter().lat.toFixed(5)},${m.getCenter().lng.toFixed(5)}`));
     m.on('mousemove',(e:L.LeafletMouseEvent)=>setCursor(`${e.latlng.lat.toFixed(5)}° N  /  ${e.latlng.lng.toFixed(5)}° E`));
     m.on('click',()=>{setMessage('No matching entity at this location. Select a marked city or incident.');setOverlap([]);});
-    const resize=new ResizeObserver(()=>{ if (map.current) { try { m.invalidateSize(); } catch {} } });
+    const resize=new ResizeObserver(()=>{ if (map.current) { try { m.invalidateSize(); } catch (_err) { void _err; } } });
     resize.observe(root.current);
     return()=>{
       resize.disconnect();
-      try { m.stop(); } catch {}
-      try { m.remove(); } catch {}
+      try { m.stop(); } catch (_err) { void _err; }
+      try { m.remove(); } catch (_err) { void _err; }
       map.current=null;
     };
   },[]);
@@ -59,14 +59,14 @@ export function SouthIndiaMap() {
   useEffect(()=>{
     if(!map.current) return;
     if(lat===undefined||lon===undefined){
-      try { map.current.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:false}); } catch {}
+      try { map.current.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:false}); } catch (_err) { void _err; }
       return;
     }
     try {
       map.current.flyTo([lat,lon],selectedEvent?14:11,{duration:1.1,animate:!matchMedia('(prefers-reduced-motion: reduce)').matches});
-    } catch {}
+    } catch (_err) { void _err; }
   },[lat,lon,selectedEvent?eventKey(selectedEvent):null]);
-  const resetMap=()=>{reset();setOverlap([]);try { map.current?.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:!matchMedia('(prefers-reduced-motion: reduce)').matches}); } catch {} };
+  const resetMap=()=>{reset();setOverlap([]);try { map.current?.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:!matchMedia('(prefers-reduced-motion: reduce)').matches}); } catch (_err) { void _err; } };
   return <section className={`map-workspace ${expanded?'expanded':''}`} aria-label="South India geographic workspace">
     <div className="map-top"><span className="eyebrow"><Crosshair size={14}/> REGIONAL SPATIAL VIEW</span><div className="map-tools"><button aria-label="Map layers" aria-expanded={layers} onClick={()=>setLayers(!layers)}><Layers size={16}/></button><button aria-label="Return to region" onClick={resetMap}><RotateCcw size={16}/></button><button aria-label={expanded?'Exit expanded map':'Expand map'} onClick={()=>setExpanded(!expanded)}><Maximize2 size={16}/></button></div></div>
     <div ref={root} className="map-canvas" data-center={mapCenter}/>

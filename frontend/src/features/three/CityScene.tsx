@@ -71,19 +71,19 @@ function SceneMetrics({ onLost }: { onLost: () => void }) {
                     return;
                 }
                 geoms.forEach(g => {
-                    try { g.dispose(); } catch {}
+                    try { g.dispose(); } catch (_err) { void _err; }
                 });
                 mats.forEach(m => {
-                    try { m.dispose(); } catch {}
+                    try { m.dispose(); } catch (_err) { void _err; }
                 });
                 scene.traverse(object => {
                     if ('geometry' in object && object.geometry && typeof (object.geometry as THREE.BufferGeometry).dispose === 'function') {
-                        try { (object.geometry as THREE.BufferGeometry).dispose(); } catch {}
+                        try { (object.geometry as THREE.BufferGeometry).dispose(); } catch (_err) { void _err; }
                     }
                     if ('material' in object && object.material) {
                         const mList = Array.isArray(object.material) ? object.material : [object.material];
                         mList.forEach(m => {
-                            if (m && typeof m?.dispose === 'function') { try { m.dispose(); } catch {} }
+                            if (m && typeof m?.dispose === 'function') { try { m.dispose(); } catch (_err) { void _err; } }
                         });
                     }
                 });
