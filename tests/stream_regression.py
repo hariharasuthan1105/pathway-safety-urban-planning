@@ -1,4 +1,5 @@
 """Run directly on Linux for the native Pathway 0.33.0 regression."""
+import os
 import datetime
 import sys
 import threading
@@ -9,6 +10,9 @@ from src.main import create_pathway_sink, anomaly_flag
 from src.processing import AnomalyDetector
 from src.processing.shared_state import get_shared_city_state_manager, reset_shared_state
 from src.data_sources.base import GeneratorConnectorSubject
+
+if os.getenv("REQUIRE_NATIVE_PATHWAY") == "1":
+    assert IS_NATIVE_PATHWAY, "Native Pathway required; compatibility fallback is forbidden"
 
 reset_shared_state()
 class Events(pw.Schema):

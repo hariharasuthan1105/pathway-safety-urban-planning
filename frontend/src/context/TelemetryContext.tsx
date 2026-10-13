@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { fetchApi } from '../lib/api';
-import { config } from '../lib/config';
+import { fetchApi, subscribeState } from '../lib/api';
 import type { CitySummary, TelemetryEvent, UrbanState } from '../types';
 
 export const eventKey = (e: TelemetryEvent) => e.event_id || `${e.source}:${e.timestamp}:${JSON.stringify(e.location)}`;
@@ -35,28 +34,11 @@ export function TelemetryProvider({children}:{children:ReactNode}) {
     mounted.current=true;
     void refresh();
     const pollId=setInterval(()=>void refresh(), 8000);
-    let eventSource: EventSource | null = null;
-    try {
-      const sseOrigin = config.apiBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '');
-      if (sseOrigin && typeof EventSource !== 'undefined') {
-        eventSource = new EventSource(`${sseOrigin}/api/stream`, { withCredentials: true });
-        eventSource.addEventListener('state_update', () => {
-          if (mounted.current) void refresh();
-        });
-        eventSource.onerror = () => {
-          // Keep poll interval active; browser EventSource will automatically retry connecting
-        };
-      }
-    } catch {
-      // EventSource instantiation failed; falling back to interval polling
-    }
+    const stopStream = subscribeState(() => { if (mounted.current) void refresh(); });
     return ()=>{
       mounted.current=false;
       clearInterval(pollId);
-      if (eventSource) {
-        eventSource.close();
-        eventSource = null;
-      }
+      stopStream();
     };
   },[refresh]);
   const cities=Object.values(state?.city_summaries||{});

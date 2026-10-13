@@ -29,6 +29,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, EmailStr, Field
 import uvicorn
 
+from .processing.provenance import evidence_envelope
 from .auth import signup_user, authenticate_user, get_session_user, delete_session
 from .data_sources.real_sources import ingest_webhook_payload
 from .processing.shared_state import get_shared_city_state_manager, get_shared_rag_system
@@ -188,7 +189,7 @@ def source_freshness_report(state):
         entry.setdefault("received_at", entry.get("last_update"))
         entry.setdefault("freshness_age_seconds", None)
         entry.setdefault("error_code", None)
-    return freshness
+    return {key: evidence_envelope(key, entry) for key, entry in freshness.items()}
 
 
 def register_ai_query_handler(handler: Any):
@@ -207,6 +208,8 @@ app = FastAPI(
 # Configure CORS Middleware
 raw_cors = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:8000,http://127.0.0.1:5173")
 allowed_origins = [origin.strip() for origin in raw_cors.split(",") if origin.strip()]
+if "*" in allowed_origins:
+    raise ValueError("CORS_ORIGINS must explicitly list frontend origins; wildcard credentials are forbidden")
 
 app.add_middleware(
     CORSMiddleware,
@@ -217,8 +220,26 @@ app.add_middleware(
 )
 
 # Helper for secure session cookie configuration
+@app.middleware("http")
+async def protect_cookie_mutations(request: Request, call_next):
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.url.path.startswith("/api/"):
+        origin = request.headers.get("origin")
+        production = os.getenv("ENVIRONMENT", "development").lower() in {"production", "prod"}
+        if origin and origin not in allowed_origins:
+            return JSONResponse(status_code=403, content={"detail": "Untrusted request origin"})
+        if request.cookies.get("session_token"):
+            if production and (origin not in allowed_origins or request.headers.get("x-requested-with") != "XMLHttpRequest"):
+                return JSONResponse(status_code=403, content={"detail": "Cookie mutation requires an allowed Origin and X-Requested-With header"})
+    return await call_next(request)
+
+
+def request_session_token(request: Request):
+    authorization = request.headers.get("authorization", "")
+    return authorization[7:].strip() if authorization.startswith("Bearer ") else request.cookies.get("session_token")
+
+
 def set_auth_cookie(response: Response, token: str, max_age: int):
-    is_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true"
+    is_secure = os.getenv("COOKIE_SECURE", "false").lower() == "true" or os.getenv("ENVIRONMENT", "").lower() in {"production", "prod"}
     samesite_val = os.getenv("COOKIE_SAMESITE", "none" if is_secure else "lax")
     response.set_cookie(
         key="session_token",
@@ -235,18 +256,20 @@ class SignupRequest(BaseModel):
     full_name: str = Field(..., min_length=2, max_length=100)
     email: str
     password: str = Field(..., min_length=10)
+    session_mode: str = "cookie"
 
 class LoginRequest(BaseModel):
     email: str
     password: str
     remember: bool = False
+    session_mode: str = "cookie"
 
 class AskRequest(BaseModel):
     question: str = Field(..., min_length=1)
 
 # Dependency: Session Cookie Authentication Guard
 async def get_current_user(request: Request) -> Dict[str, Any]:
-    session_token = request.cookies.get("session_token")
+    session_token = request_session_token(request)
     if not session_token:
         # Also check Authorization header Bearer token if present
         auth_header = request.headers.get("Authorization")
@@ -263,7 +286,7 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
 
 # Optional user dependency for endpoints that handle guest/user distinction
 async def get_optional_user(request: Request) -> Optional[Dict[str, Any]]:
-    session_token = request.cookies.get("session_token")
+    session_token = request_session_token(request)
     if not session_token:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
@@ -280,9 +303,9 @@ async def auth_signup(req: SignupRequest, response: Response):
     try:
         user = signup_user(req.full_name, req.email, req.password)
         # Automatically authenticate upon successful signup
-        auth_res = authenticate_user(req.email, req.password, remember=True)
+        auth_res = authenticate_user(req.email, req.password, remember=True, session_seconds=900 if req.session_mode == "memory" else None)
         token = auth_res["token"]
-        set_auth_cookie(response, token, max_age=30 * 86400)
+        set_auth_cookie(response, token, max_age=900 if req.session_mode == "memory" else 30 * 86400)
         return {"user": auth_res["user"], "token": token, "message": "Account created successfully"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -293,9 +316,9 @@ async def auth_signup(req: SignupRequest, response: Response):
 @app.post("/api/auth/login")
 async def auth_login(req: LoginRequest, response: Response):
     try:
-        auth_res = authenticate_user(req.email, req.password, remember=req.remember)
+        auth_res = authenticate_user(req.email, req.password, remember=req.remember, session_seconds=900 if req.session_mode == "memory" else None)
         token = auth_res["token"]
-        max_age = 30 * 86400 if req.remember else 86400
+        max_age = 900 if req.session_mode == "memory" else 30 * 86400 if req.remember else 86400
         set_auth_cookie(response, token, max_age=max_age)
         return {"user": auth_res["user"], "token": token, "message": "Authenticated successfully"}
     except ValueError as e:
@@ -303,9 +326,9 @@ async def auth_login(req: LoginRequest, response: Response):
 
 @app.post("/api/auth/logout")
 async def auth_logout(request: Request, response: Response):
-    token = request.cookies.get("session_token")
-    if token:
-        delete_session(token)
+    for token in {request_session_token(request), request.cookies.get("session_token")}:
+        if token:
+            delete_session(token)
     response.delete_cookie("session_token", path="/")
     return {"message": "Logged out successfully"}
 
@@ -396,6 +419,10 @@ async def get_state(current_user: Dict[str, Any] = Depends(get_current_user)):
             "active_events": state["rolling_metrics"]["count_60m"],
             "active_anomalies": len(state["active_anomalies"]),
             "cities_online": sum(c["event_count"] > 0 for c in summaries.values()), "cities_total": len(summaries)}
+        for source in state["sources"]:
+            entry = freshness.get(source["source_id"], {})
+            source.update({key: entry.get(key) for key in ("status", "source_class", "ingested_at", "unavailable_reason")})
+        state["risk_provenance"] = {"source_class": "DERIVED", "method": "Rule-based heuristic; not predictive"}
         return state
     except Exception as e:
         logger.error(f"[API] GET /api/state error: {e}")
@@ -406,9 +433,12 @@ async def stream_state_updates(request: Request, current_user: Dict[str, Any] = 
     """Server-Sent Events (SSE) streaming endpoint pushing real-time state deltas."""
     async def event_generator():
         city_state_mgr = get_shared_city_state_manager()
+        token = request_session_token(request)
 
         while True:
             if await request.is_disconnected():
+                break
+            if isinstance(token, str) and token and not get_session_user(token):
                 break
             try:
                 state = city_state_mgr.get_live_city_state()
@@ -533,12 +563,12 @@ async def ingest_webhook_event(request: Request):
     _check_webhook_rate_limit(client_ip)
 
     max_bytes = int(os.getenv("MAX_WEBHOOK_PAYLOAD_BYTES", "65536"))
-    raw_body = await request.body()
-    if len(raw_body) > max_bytes:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"Webhook payload size ({len(raw_body)} bytes) exceeds configured limit ({max_bytes} bytes)."
-        )
+    raw_body = bytearray()
+    async for chunk in request.stream():
+        if len(raw_body) + len(chunk) > max_bytes:
+            raise HTTPException(status_code=413, detail=f"Webhook payload exceeds configured limit ({max_bytes} bytes).")
+        raw_body.extend(chunk)
+    raw_body = bytes(raw_body)
 
     _verify_webhook_authorization(request, raw_body)
 
@@ -549,6 +579,8 @@ async def ingest_webhook_event(request: Request):
 
     if not isinstance(body, dict):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Payload must be a JSON object.")
+    if not isinstance(body.get("event_type", "external_alert"), str) or not str(body.get("event_type", "external_alert")).strip():
+        raise HTTPException(status_code=422, detail="event_type must be a non-empty string")
 
     # Validate coordinate boundaries
     lat = body.get("latitude") if body.get("latitude") is not None else body.get("location", {}).get("lat") if isinstance(body.get("location"), dict) else None
@@ -587,10 +619,14 @@ async def ingest_webhook_event(request: Request):
             "timestamp": datetime.now(timezone.utc).isoformat()
         }
     except ValueError as ve:
+        with _WEBHOOK_LOCK:
+            _WEBHOOK_DEDUP_CACHE.pop(event_id, None)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
     except Exception as e:
-        logger.error(f"Webhook ingestion error: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        with _WEBHOOK_LOCK:
+            _WEBHOOK_DEDUP_CACHE.pop(event_id, None)
+        logger.error("Webhook ingestion failed (%s)", type(e).__name__)
+        raise HTTPException(status_code=400, detail="Webhook ingestion failed")
 
 @app.post("/api/ask")
 def ask_copilot(req: AskRequest, current_user: Dict[str, Any] = Depends(get_current_user)):

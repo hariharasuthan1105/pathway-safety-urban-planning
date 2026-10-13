@@ -1,5 +1,10 @@
 import { config } from './config';
 
+let sessionToken: string | null = null;
+export function setSessionToken(value: string | null) { sessionToken = value; }
+const sessionHeaders = (): Record<string,string> => sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {};
+
+
 export class ApiError extends Error {
   status: number;
   data?: any;
@@ -21,6 +26,9 @@ export async function fetchApi<T = any>(endpoint: string, options: FetchOptions 
   const { timeoutMs = 8000, retries = 2, ...customConfig } = options;
   const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = endpoint.startsWith('http') ? endpoint : `${config.apiBaseUrl}${path}`;
+  if (new URL(url).origin !== new URL(config.apiBaseUrl).origin) {
+    throw new ApiError(0, 'API requests must use the configured backend origin');
+  }
 
   const defaultHeaders: HeadersInit = {
     'Accept': 'application/json',
@@ -33,6 +41,7 @@ export async function fetchApi<T = any>(endpoint: string, options: FetchOptions 
     credentials: 'include',
     headers: {
       ...defaultHeaders,
+      ...sessionHeaders(),
       ...customConfig.headers,
     },
   };
@@ -75,4 +84,37 @@ export async function fetchApi<T = any>(endpoint: string, options: FetchOptions 
   }
 
   throw new ApiError(0, 'Request failed after retries');
+}
+
+// EventSource cannot carry Authorization. Keep streaming and polling on one origin.
+export function subscribeState(onUpdate: () => void): () => void {
+  const controller = new AbortController();
+  void (async () => {
+    try {
+      const response = await fetch(`${config.apiBaseUrl}/api/stream`, {
+        credentials: 'include', headers: sessionHeaders(), signal: controller.signal,
+      });
+      if (response.status === 401) {
+        window.dispatchEvent(new CustomEvent('auth:expired'));
+        return;
+      }
+      if (!response.ok || !response.body) return;
+      const reader = response.body.getReader(), decoder = new TextDecoder();
+      let buffer = '';
+      try {
+        while (!controller.signal.aborted) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          buffer = (buffer + decoder.decode(value, {stream:true})).replaceAll('\r\n', '\n');
+          let boundary;
+          while ((boundary = buffer.indexOf('\n\n')) >= 0) {
+            const event = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2);
+            if (event.includes('event: state_update')) onUpdate();
+          }
+          if (buffer.length > 1048576) throw new Error('Stream frame exceeded limit');
+        }
+      } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+    } catch { /* Polling remains active when streaming is unavailable. */ }
+  })();
+  return () => controller.abort();
 }

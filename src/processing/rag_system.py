@@ -198,7 +198,7 @@ class RAGSystem:
 
             summaries = (city_state or {}).get("city_summaries", {})
             selected = [(name, value) for name, value in summaries.items() if name.casefold() in question.casefold()]
-            ranked = selected or sorted(summaries.items(), key=lambda item: item[1].get("risk_score", 0), reverse=True)[:5]
+            ranked = selected or sorted(summaries.items(), key=lambda item: (item[1].get("risk_score") or 0), reverse=True)[:5]
             if ranked:
                 ans_text += "\n\nCurrent city evidence:\n" + "\n".join(
                     f"{name}: risk {value['risk_score']}/100 ({value['risk_level']}), "

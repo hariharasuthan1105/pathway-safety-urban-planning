@@ -35,7 +35,9 @@ class RollingWindowAggregator:
                 if dt >= cutoff:
                     valid_events.append(ev)
             except Exception:
-                valid_events.append(ev)
+                # Invalid timestamps cannot be retained indefinitely in a
+                # bounded observation window.
+                continue
         self.events_history = valid_events
 
     def get_events_in_window(self, minutes: int) -> List[Dict[str, Any]]:

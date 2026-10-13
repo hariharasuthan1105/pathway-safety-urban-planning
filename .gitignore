@@ -59,3 +59,7 @@ frontend/node_modules/
 frontend/dist/
 frontend/test-results/
 frontend/playwright-report/
+
+# Local verification working files (no runtime output belongs in Git)
+scratch/
+*.jsonl

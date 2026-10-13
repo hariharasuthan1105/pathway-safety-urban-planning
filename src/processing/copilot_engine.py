@@ -135,7 +135,7 @@ class CopilotEngine:
         cities = city_state.get("city_summaries", {})
         referenced = [name for name in cities if name.casefold() in question.casefold()]
         if not referenced:
-            referenced = sorted(cities, key=lambda name: cities[name].get("risk_score", 0), reverse=True)[:3]
+            referenced = sorted(cities, key=lambda name: (cities[name].get("risk_score") or 0), reverse=True)[:3]
         dashboard_actions.extend({"type": "focus_city", "city": name, "label": f"Inspect {name}"} for name in referenced)
         response["dashboard_actions"] = dashboard_actions
         response["risk"] = response.get("risk_level", city_state.get("overall_risk_level", "LOW"))

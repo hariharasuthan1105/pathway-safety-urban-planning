@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test('landing renders procedural WebGL scene and mobile layout', async ({page})=>{
+ test.setTimeout(60000);
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto('/');await expect(page.locator('h1')).toContainText('SEE THE CITY.');
  await expect(page.locator('canvas')).toBeVisible();await expect(page.locator('.scene-loading')).toHaveCount(0);

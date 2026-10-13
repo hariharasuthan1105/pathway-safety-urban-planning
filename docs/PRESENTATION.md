@@ -69,7 +69,7 @@ Streamlit Operations Command Center
 
 ---
 
-## Slide 8: Real-Time Grounded RAG + OpenAI Synthesis
+## Slide 8: Real-Time Grounded telemetry + optional Groq Synthesis
 - **Dynamic Context Assembler**: Formats the up-to-the-second **Live City State** into structured prompt context.
 - **Strict Grounding Directives**: Enforces zero hallucinated incidents/stats, notes if evidence is insufficient, and distinguishes facts from interpretation.
 - **Structured Output**: Returns JSON payloads with explicit fields (`answer`, `risk_level`, `confidence`, `affected_zones`, `evidence`).

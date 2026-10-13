@@ -11,3 +11,5 @@ Implementation direction: one authenticated telemetry provider owns polling and 
 ## Completed voxel integration
 
 `CityScene.tsx` now mounts the instanced model from `voxelWorld.ts` and transport/crowd simulation from `voxelSimulation.ts`. It remains mounted on the landing and login pages. `DigitalTwin.tsx` adds a ninth protected route, shares telemetry selection and preserves the existing map and inspectors. `GeographicEvidence.tsx` displays source coordinates independently of invented asset geometry. The production build checks the explicit API origin. See README for final verification and unresolved native/Render limitations.
+
+Rebuild v2: unused `frontend/src/App.tsx`, `App.css`, and its three starter assets were removed after reference checks. The active entry remains `frontend/src/app/App.tsx`. Historical legacy-file descriptions above refer to earlier snapshots.

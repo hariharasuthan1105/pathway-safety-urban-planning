@@ -1,8 +1,11 @@
 name: Publish voxel frontend to GitHub Pages
 
-# Manual publication only, after the owner approves deployment.
+# Publication starts only after an approved merge to main or manual dispatch.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['frontend/**', '.github/workflows/pages.yml']
 
 permissions:
   contents: read
@@ -16,17 +19,20 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
-      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
       VITE_DEPLOY_TARGET: github-pages
       VITE_BASE_PATH: /pathway-safety-urban-planning/
       VITE_ROUTER_MODE: hash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Validate backend repository variable
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: node frontend/scripts/verify-backend.mjs --validate-only
       - name: Verify configured backend is healthy
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
@@ -39,7 +45,11 @@ jobs:
           VITE_BASE_PATH: /pathway-safety-urban-planning/
           VITE_ROUTER_MODE: hash
         run: npm ci && npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - name: Assert production artifact
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: node frontend/scripts/verify-artifact.mjs
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: frontend/dist
   deploy:
@@ -52,7 +62,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/configure-pages@v5
+      - uses: actions/configure-pages@v6
       - name: Publish compiled frontend
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

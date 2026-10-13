@@ -10,12 +10,23 @@ from src.processing.shared_state import reset_shared_state, ingest_runtime_event
 class StopPolling(BaseException):
     pass
 
+@pytest.mark.parametrize('url', ['', 'not-a-url', 'file:///tmp/feed', 'https://', 'https://user:password@example.test/feed'])
+def test_invalid_gtfs_configuration_never_fetches_or_emits(url, monkeypatch):
+    monkeypatch.setenv('GTFS_FEED_URL', url)
+    source = GTFSTransitSource({})
+    with patch('src.data_sources.real_sources.requests.get') as fetch:
+        assert list(source._stream()) == []
+        fetch.assert_not_called()
+    assert source.status == 'NOT_CONFIGURED'
+    assert get_shared_city_state_manager().get_live_city_state()['data_freshness']['gtfs_transit_api']['status'] == 'NOT_CONFIGURED'
+
 def test_waiting_simulators_are_not_external_observations(monkeypatch):
     monkeypatch.setattr(api, '_SOURCE_STATUS_PROVIDER', lambda: {
         'social_media': {'status': 'RUNNING'}, 'webhook_api': {'status': 'RUNNING'}})
     report = api.source_freshness_report(get_shared_city_state_manager().get_live_city_state())
     assert report['twitter']['mode'] == 'SIMULATED'
-    assert report['twitter']['status'] == 'WAITING'
+    assert report['twitter']['status'] == 'OFFLINE'
+    assert report['twitter']['unavailable_reason'] == 'No observation received'
     assert report['twitter']['event_count'] == 0
     assert report['webhook_ingestion']['mode'] == 'EVENT_DRIVEN'
     assert report['simulation_generator']['mode'] == 'SIMULATED'
