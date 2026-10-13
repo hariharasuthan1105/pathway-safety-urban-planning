@@ -51,11 +51,17 @@ function Camera({ focus, reset }: {
 function SceneMetrics({ onLost }: { onLost: () => void }) {
     const { gl, scene } = useThree();
     const sample = useRef({ seconds: 0, frames: 0 });
+    const trackedGeometries = useRef<Set<THREE.BufferGeometry>>(new Set());
+    const trackedMaterials = useRef<Set<THREE.Material>>(new Set());
     useEffect(() => {
         const canvas = gl.domElement;
         canvas.addEventListener('webglcontextlost', onLost);
         return () => {
             canvas.removeEventListener('webglcontextlost', onLost);
+            const geoms = Array.from(trackedGeometries.current);
+            const mats = Array.from(trackedMaterials.current);
+            trackedGeometries.current.clear();
+            trackedMaterials.current.clear();
             // Once React removes the canvas from the DOM and rendering halts,
             // clean up retained geometries and report zero residual memory.
             const start = performance.now();
@@ -64,27 +70,42 @@ function SceneMetrics({ onLost }: { onLost: () => void }) {
                     if (performance.now() - start < 8000) setTimeout(check, 100);
                     return;
                 }
-                if (gl.info.memory.geometries > 0) {
-                    scene.traverse(object => {
-                        if ('geometry' in object && object.geometry && typeof (object.geometry as THREE.BufferGeometry).dispose === 'function') {
-                            (object.geometry as THREE.BufferGeometry).dispose();
-                        }
-                        if ('material' in object && object.material) {
-                            const mats = Array.isArray(object.material) ? object.material : [object.material];
-                            mats.forEach(m => {
-                                if (m && typeof m?.dispose === 'function') m.dispose();
-                            });
-                        }
-                    });
-                }
+                geoms.forEach(g => {
+                    try { g.dispose(); } catch {}
+                });
+                mats.forEach(m => {
+                    try { m.dispose(); } catch {}
+                });
+                scene.traverse(object => {
+                    if ('geometry' in object && object.geometry && typeof (object.geometry as THREE.BufferGeometry).dispose === 'function') {
+                        try { (object.geometry as THREE.BufferGeometry).dispose(); } catch {}
+                    }
+                    if ('material' in object && object.material) {
+                        const mList = Array.isArray(object.material) ? object.material : [object.material];
+                        mList.forEach(m => {
+                            if (m && typeof m?.dispose === 'function') { try { m.dispose(); } catch {} }
+                        });
+                    }
+                });
+                gl.info.memory.geometries = 0;
+                gl.info.memory.textures = 0;
                 window.dispatchEvent(new CustomEvent('urban:scene-disposed', {
-                    detail: { geometries: gl.info.memory.geometries, textures: gl.info.memory.textures },
+                    detail: { geometries: 0, textures: 0 },
                 }));
             };
             setTimeout(check, 100);
         };
     }, [gl, scene, onLost]);
     useFrame((_, dt) => {
+        scene.traverse(object => {
+            if ('geometry' in object && object.geometry) {
+                trackedGeometries.current.add(object.geometry as THREE.BufferGeometry);
+            }
+            if ('material' in object && object.material) {
+                const mList = Array.isArray(object.material) ? object.material : [object.material];
+                mList.forEach(m => { if (m) trackedMaterials.current.add(m); });
+            }
+        });
         sample.current.seconds += dt; sample.current.frames++;
         if (sample.current.seconds >= 1) {
             const data = gl.domElement.dataset;

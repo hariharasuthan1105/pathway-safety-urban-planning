@@ -6,6 +6,16 @@ import { useTelemetry, coordinates, eventKey } from '../../context/TelemetryCont
 import { riskColor, RiskBadge, stamp } from '../../components/ui/Workstation';
 import type { TelemetryEvent } from '../../types';
 
+// Protect against Leaflet calling getPosition on detached elements during route transitions
+if (typeof L !== 'undefined' && L.DomUtil && !(L.DomUtil as unknown as { __guarded?: boolean }).__guarded) {
+  const orig = L.DomUtil.getPosition;
+  L.DomUtil.getPosition = ((el?: HTMLElement | null) => {
+    if (!el) return new L.Point(0, 0);
+    return orig(el);
+  }) as typeof L.DomUtil.getPosition;
+  (L.DomUtil as unknown as { __guarded?: boolean }).__guarded = true;
+}
+
 export function SouthIndiaMap() {
   const {cities,state,selectedCity,selectedEvent,selectCity,selectEvent,reset,region}=useTelemetry();
   const root=useRef<HTMLDivElement>(null), map=useRef<L.Map|null>(null), markers=useRef<L.LayerGroup|null>(null);
@@ -19,8 +29,14 @@ export function SouthIndiaMap() {
     m.on('moveend',()=>setMapCenter(`${m.getCenter().lat.toFixed(5)},${m.getCenter().lng.toFixed(5)}`));
     m.on('mousemove',(e:L.LeafletMouseEvent)=>setCursor(`${e.latlng.lat.toFixed(5)}° N  /  ${e.latlng.lng.toFixed(5)}° E`));
     m.on('click',()=>{setMessage('No matching entity at this location. Select a marked city or incident.');setOverlap([]);});
-    const resize=new ResizeObserver(()=>m.invalidateSize());resize.observe(root.current);
-    return()=>{resize.disconnect();m.remove();map.current=null;};
+    const resize=new ResizeObserver(()=>{ if (map.current) { try { m.invalidateSize(); } catch {} } });
+    resize.observe(root.current);
+    return()=>{
+      resize.disconnect();
+      try { m.stop(); } catch {}
+      try { m.remove(); } catch {}
+      map.current=null;
+    };
   },[]);
   useEffect(()=>{const group=markers.current;if(!group)return;group.clearLayers();
     if(showCities)cities.filter(c=>region==='ALL'||c.state===region).forEach(c=>{
@@ -40,8 +56,17 @@ export function SouthIndiaMap() {
   },[cities,state,showCities,showEvents,selectedCity,selectedEvent,region,selectCity,selectEvent]);
   const target=selectedEvent?coordinates(selectedEvent):selectedCity?[selectedCity.lat,selectedCity.lon]:null;
   const lat=target?.[0],lon=target?.[1];
-  useEffect(()=>{if(lat===undefined||lon===undefined){map.current?.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:false});return;}map.current?.flyTo([lat,lon],selectedEvent?14:11,{duration:1.1,animate:!matchMedia('(prefers-reduced-motion: reduce)').matches});},[lat,lon,selectedEvent?eventKey(selectedEvent):null]);
-  const resetMap=()=>{reset();setOverlap([]);map.current?.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:!matchMedia('(prefers-reduced-motion: reduce)').matches});};
+  useEffect(()=>{
+    if(!map.current) return;
+    if(lat===undefined||lon===undefined){
+      try { map.current.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:false}); } catch {}
+      return;
+    }
+    try {
+      map.current.flyTo([lat,lon],selectedEvent?14:11,{duration:1.1,animate:!matchMedia('(prefers-reduced-motion: reduce)').matches});
+    } catch {}
+  },[lat,lon,selectedEvent?eventKey(selectedEvent):null]);
+  const resetMap=()=>{reset();setOverlap([]);try { map.current?.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:!matchMedia('(prefers-reduced-motion: reduce)').matches}); } catch {} };
   return <section className={`map-workspace ${expanded?'expanded':''}`} aria-label="South India geographic workspace">
     <div className="map-top"><span className="eyebrow"><Crosshair size={14}/> REGIONAL SPATIAL VIEW</span><div className="map-tools"><button aria-label="Map layers" aria-expanded={layers} onClick={()=>setLayers(!layers)}><Layers size={16}/></button><button aria-label="Return to region" onClick={resetMap}><RotateCcw size={16}/></button><button aria-label={expanded?'Exit expanded map':'Expand map'} onClick={()=>setExpanded(!expanded)}><Maximize2 size={16}/></button></div></div>
     <div ref={root} className="map-canvas" data-center={mapCenter}/>
