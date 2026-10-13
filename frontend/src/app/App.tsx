@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '../context/AuthContext';
 import { ProtectedRoute } from './ProtectedRoute';
 import { Landing } from '../pages/Landing';
@@ -16,9 +16,12 @@ import { Copilot } from '../pages/Copilot';
 import { DigitalTwin } from '../pages/DigitalTwin';
 import { Settings } from '../pages/Settings';
 
+// Pages cannot rewrite nested URLs to the SPA shell. Hash routes survive reloads.
+const Router = import.meta.env.VITE_ROUTER_MODE === 'hash' ? HashRouter : BrowserRouter;
+
 export const App: React.FC = () => {
   return (
-    <BrowserRouter>
+    <Router>
       <AuthProvider>
         <Routes>
           {/* Public Routes */}
@@ -51,6 +54,6 @@ export const App: React.FC = () => {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
-    </BrowserRouter>
+    </Router>
   );
 };

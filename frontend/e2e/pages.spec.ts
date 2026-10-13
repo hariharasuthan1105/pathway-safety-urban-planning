@@ -1,0 +1,37 @@
+import {test, expect} from '@playwright/test';
+
+test('compiled Pages artifact mounts voxel city and preserves hash routes on reload', async ({page}) => {
+  test.setTimeout(90000);
+  const errors:string[]=[], apiRequests:string[]=[], failures:string[]=[];
+  page.on('pageerror', e=>errors.push(e.message));
+  page.on('request', r=>{if(r.url().includes('/api/'))apiRequests.push(r.url());});
+  page.on('response', r=>{if(r.status()>=400 && /\.(js|css|svg|woff2?)(\?|$)/.test(r.url()))failures.push(r.url());});
+  await page.goto('/pathway-safety-urban-planning/');
+  await expect(page.locator('.voxel-scene canvas')).toBeVisible();
+  await expect(page.locator('.scene-loading')).toHaveCount(0);
+  await expect(page.locator('body')).not.toContainText('Grounded RAG + OpenAI');
+  await page.getByRole('link',{name:'Explore the platform',exact:true}).click();
+  await expect(page.locator('#intelligence')).toBeInViewport();
+  await expect(page).not.toHaveURL(/#intelligence/);
+  await page.goto('/pathway-safety-urban-planning/#/signup');
+  await page.getByPlaceholder('Control Room Operator').fill('Pages QA');
+  await page.getByPlaceholder('operator@urbanintel.in').fill(`pages_${Date.now()}@example.com`);
+  await page.locator('input[type=password]').nth(0).fill('LocalTestPassword123!');
+  await page.locator('input[type=password]').nth(1).fill('LocalTestPassword123!');
+  await page.locator('button[type=submit]').click();
+  await expect(page).toHaveURL(/#\/app\/overview/);
+  await page.locator('.app-sidebar a[href="#/app/digital-twin"]').click();
+  await expect(page.locator('h1')).toContainText('Metropolis workspace');
+  await expect(page.locator('.scene-loading')).toHaveCount(0);
+  await page.getByLabel('Explore district').selectOption({label:'Grand Central terminus'});
+  await page.getByLabel('Focus selected entity').click();
+  await expect(page.locator('.voxel-selection')).toContainText('Six platforms');
+  await page.reload();
+  await expect(page).toHaveURL(/#\/app\/digital-twin/);
+  await expect(page.locator('.voxel-scene canvas')).toBeVisible();
+  await expect(page.locator('.scene-loading')).toHaveCount(0);
+  await page.screenshot({path:'../../../outputs/pages-voxel-verified.png',fullPage:false});
+  expect(apiRequests.length).toBeGreaterThan(0);
+  expect(apiRequests.every(url=>url.startsWith('http://127.0.0.1:10000/api/'))).toBeTruthy();
+  expect(failures).toEqual([]);expect(errors).toEqual([]);
+});

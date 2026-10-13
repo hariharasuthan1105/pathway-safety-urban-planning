@@ -102,6 +102,14 @@ npm run test:e2e
 
 `PLAYWRIGHT_EXECUTABLE_PATH` can select an existing compatible Chromium installation. The tests create disposable local accounts. Screenshot paths currently target an `outputs` directory two levels above the project; Playwright creates it. Run `python tests/runtime_smoke.py` separately against the running port-10000 backend (`SMOKE_API_URL` overrides it).
 
+## Frontend hosting and publishing
+
+The existing public frontend is hosted on **GitHub Pages**, currently configured to publish `main` from repository root (`/`). That root contains the legacy HTML/Three.js application with OpenAI branding and a hardcoded localhost API. Merged main `5857851c24474d8a5bdf90fc4b8434c3f14dc818` contains the voxel React project, but the CI build does not publish its output. This explains the old live frontend; clearing browser cache cannot replace the wrong artifact.
+
+Active React entry: `frontend/index.html` → `frontend/src/main.tsx` → `frontend/src/app/App.tsx`. `/` and `/login` mount `features/three/CityScene.tsx`; `/app/digital-twin` mounts the same scene in the protected workspace. `frontend/src/App.tsx` and root `index.html` are separate legacy entries, not imports of this application.
+
+See [the exact Pages publishing steps](docs/FRONTEND_HOSTING.md). `.github/workflows/pages.yml` builds from `frontend`, uploads `frontend/dist`, and publishes only via an owner-approved manual run on `main`. It requires a repository variable containing the verified HTTPS backend origin, checks `/api/health`, and rejects loopback targets. No hosting settings or deployments were changed during the investigation.
+
 ## Production configuration and Render
 
 Copy `frontend/.env.production.example` to `frontend/.env.production`, set `VITE_API_BASE_URL` to the verified API origin, then run `npm ci && npm run build`. Production builds reject an empty or invalid origin; no production API proxy is assumed. Vite development proxy settings do not create a hosted proxy. Environment changes require rebuilding the static frontend. The production example deliberately leaves the origin blank. The previously used **https://urban-intelligence-backend-z869.onrender.com** still returns HTTP 503 and is not selected as a production target. A verified backend origin remains a required deployment configuration step.
