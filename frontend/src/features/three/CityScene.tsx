@@ -49,13 +49,25 @@ function Camera({ focus, reset }: {
     return null;
 }
 function SceneMetrics({ onLost }: { onLost: () => void }) {
-    const { gl } = useThree();
+    const { gl, scene } = useThree();
     const sample = useRef({ seconds: 0, frames: 0 });
     useEffect(() => {
         const canvas = gl.domElement;
         canvas.addEventListener('webglcontextlost', onLost);
         return () => {
             canvas.removeEventListener('webglcontextlost', onLost);
+            scene.traverse(object => {
+                if ('geometry' in object && object.geometry && typeof (object.geometry as THREE.BufferGeometry).dispose === 'function') {
+                    (object.geometry as THREE.BufferGeometry).dispose();
+                }
+                if ('material' in object && object.material) {
+                    const mats = Array.isArray(object.material) ? object.material : [object.material];
+                    mats.forEach(m => {
+                        if (m && typeof m.dispose === 'function') m.dispose();
+                    });
+                }
+            });
+            gl.dispose();
             // R3F disposes resources after React removes the canvas. Inspect the
             // old renderer, not a newly created renderer with fresh counters.
             setTimeout(() => {
@@ -64,7 +76,7 @@ function SceneMetrics({ onLost }: { onLost: () => void }) {
                 }));
             }, 1500);
         };
-    }, [gl, onLost]);
+    }, [gl, scene, onLost]);
     useFrame((_, dt) => {
         sample.current.seconds += dt; sample.current.frames++;
         if (sample.current.seconds >= 1) {
