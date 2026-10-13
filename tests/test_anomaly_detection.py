@@ -89,7 +89,7 @@ def test_pathway_anomaly_detector_udf_execution():
     )
 
     output_events = []
-    def sink(row):
+    def sink(key, row, time, is_addition):
         output_events.append(row)
 
     if hasattr(processed, "subscribe"):

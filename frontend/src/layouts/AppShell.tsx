@@ -1,143 +1,18 @@
-import React, { useState } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Activity, Building2, Car, ShieldAlert, Wind, Zap, Bot, Settings, LogOut, Menu, X, Search, PanelLeftClose, Maximize2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { 
-  ShieldCheck, LayoutDashboard, Building2, Car, ShieldAlert, 
-  CloudSun, Zap, Bot, Settings, LogOut, Menu, X 
-} from 'lucide-react';
-
-export const AppShell: React.FC = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isConnected] = useState(true);
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
-
-  const navItems = [
-    { path: '/app/overview', label: 'Overview', icon: LayoutDashboard },
-    { path: '/app/cities', label: 'Cities', icon: Building2 },
-    { path: '/app/traffic', label: 'Traffic', icon: Car },
-    { path: '/app/risk', label: 'Risk', icon: ShieldAlert },
-    { path: '/app/environment', label: 'Environment', icon: CloudSun },
-    { path: '/app/events', label: 'Events', icon: Zap },
-    { path: '/app/copilot', label: 'AI Copilot', icon: Bot },
-    { path: '/app/settings', label: 'Settings', icon: Settings },
-  ];
-
-  return (
-    <div className="min-h-screen bg-[#070B14] text-slate-100 flex flex-col font-sans">
-      {/* Top Header Bar */}
-      <header className="sticky top-0 z-40 glass-nav h-16 px-4 md:px-8 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-            <ShieldCheck className="w-5 h-5" />
-          </div>
-          <div>
-            <span className="font-bold text-base tracking-tight text-white block">URBAN INTELLIGENCE</span>
-            <span className="text-[10px] font-semibold tracking-widest text-blue-400 uppercase block -mt-1">South India Command Center</span>
-          </div>
-        </div>
-
-        {/* Desktop Status & User Menu */}
-        <div className="hidden md:flex items-center gap-4">
-          <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/80 border border-slate-800 text-xs font-medium">
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
-            <span>{isConnected ? 'LIVE PIPELINE' : 'BACKEND OFFLINE'}</span>
-          </div>
-
-          <div className="flex items-center gap-3 pl-4 border-l border-slate-800">
-            <div className="text-right">
-              <p className="text-xs font-semibold text-white">{user?.full_name || 'Operator'}</p>
-              <p className="text-[11px] text-slate-400">{user?.email || ''}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-              title="Sign Out"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Hamburger Toggle */}
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="md:hidden p-2 text-slate-400 hover:text-white"
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
-      </header>
-
-      {/* Main Content Area with Desktop Sidebar */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Desktop Floating Sidebar */}
-        <aside className="hidden md:flex w-64 p-4 flex-col justify-between border-r border-slate-800/80 bg-slate-950/40">
-          <nav className="space-y-1">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location.pathname.startsWith(item.path);
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                    isActive
-                      ? 'bg-blue-600/15 text-blue-400 border border-blue-500/30 shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
-          </nav>
-
-          <div className="p-3.5 rounded-2xl glass-surface text-xs text-slate-400 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-white">20 Cities</span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">HYBRID</span>
-            </div>
-            <p className="text-[11px] font-medium text-slate-300">
-              Tamil Nadu • Kerala • Andhra Pradesh
-            </p>
-            <p className="text-[10px] leading-relaxed text-slate-400 pt-1 border-t border-slate-800/60">
-              Currently operating across 20 cities in South India.
-            </p>
-          </div>
-        </aside>
-
-        {/* Main Content Area */}
-        <main className="flex-1 p-4 md:p-8 overflow-y-auto">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* Mobile Bottom Floating Navigation Bar */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 glass-nav px-4 py-2 flex items-center justify-around border-t border-slate-800">
-        {navItems.slice(0, 5).map((item) => {
-          const Icon = item.icon;
-          const isActive = location.pathname.startsWith(item.path);
-          return (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={`flex flex-col items-center gap-1 p-1 text-[11px] font-medium transition-colors ${
-                isActive ? 'text-blue-400' : 'text-slate-400'
-              }`}
-            >
-              <Icon className="w-5 h-5" />
-              <span>{item.label}</span>
-            </NavLink>
-          );
-        })}
-      </nav>
-    </div>
-  );
-};
+import { TelemetryProvider, useTelemetry } from '../context/TelemetryContext';
+import { Brand, Connection, stamp } from '../components/ui/Workstation';
+const items=[['overview','Overview',Activity],['digital-twin','3D metropolis',Building2],['cities','Cities explorer',Building2],['traffic','Traffic',Car],['risk','Risk intelligence',ShieldAlert],['environment','Environment',Wind],['events','Event stream',Zap],['copilot','AI Copilot',Bot],['settings','Settings',Settings]] as const;
+function Shell(){const {user,logout}=useAuth(),navigate=useNavigate(),location=useLocation();const {cities,selectCity,selectedCity,region,setRegion,state}=useTelemetry();const [collapsed,setCollapsed]=useState(false),[mobile,setMobile]=useState(false),[command,setCommand]=useState(false),[query,setQuery]=useState(''),[focus,setFocus]=useState(false);const dialog=useRef<HTMLDialogElement>(null),opener=useRef<HTMLElement|null>(null);
+  useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();setCommand(v=>!v);}if(e.key==='Escape'){setFocus(false);setMobile(false);}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[]);
+  useEffect(()=>{if(command){opener.current=document.activeElement as HTMLElement;dialog.current?.showModal();}else{dialog.current?.close();opener.current?.focus();}},[command]);
+  useEffect(()=>setMobile(false),[location.pathname]);
+  return <div className={`app-shell ${collapsed?'collapsed':''} ${focus?'workspace-focus':''}`}><header className="app-topbar"><button className="icon-button mobile-toggle" aria-label="Toggle navigation" aria-expanded={mobile} onClick={()=>setMobile(!mobile)}>{mobile?<X size={18}/>:<Menu size={18}/>}</button><Brand/><button className="command-trigger" onClick={()=>setCommand(true)}><Search size={15}/><span>Find a city or workspace</span><kbd>Ctrl K</kbd></button><Connection/><button className="icon-button" onClick={()=>setFocus(!focus)} aria-label="Toggle focus workspace"><Maximize2 size={16}/></button><button className="icon-button" title="Sign Out" aria-label="Sign out" onClick={async()=>{await logout();navigate('/login');}}><LogOut size={16}/></button></header>
+  <aside className={`app-sidebar ${mobile?'mobile-open':''}`}><div className="sidebar-heading"><span className="eyebrow">WORKSPACE</span><button className="icon-button" onClick={()=>setCollapsed(!collapsed)} aria-label="Collapse sidebar"><PanelLeftClose size={16}/></button></div><nav>{items.map(([path,label,Icon],i)=><NavLink key={path} to={`/app/${path}`} title={label}><Icon size={18}/><span>{label}</span><small>{String(i+1).padStart(2,'0')}</small></NavLink>)}</nav><div className="sidebar-bottom"><span className="eyebrow">REGIONAL COVERAGE</span><strong>{state?.region?.cities_total??'—'} cities</strong><p>Tamil Nadu<br/>Kerala<br/>Andhra Pradesh</p><div className="operator"><span className="avatar">{user?.full_name?.slice(0,1)||'O'}</span><div><strong>{user?.full_name}</strong><small>Operations workspace</small></div></div></div></aside>
+  <div className="workspace-main"><div className="workspace-toolbar"><div><span className="technical">REGION</span><select aria-label="Region" value={region} onChange={e=>setRegion(e.target.value)}>{['ALL','Tamil Nadu','Kerala','Andhra Pradesh'].map(r=><option key={r} value={r}>{r==='ALL'?'South India':r}</option>)}</select><select aria-label="Selected city" value={selectedCity?.city||''} onChange={e=>selectCity(e.target.value)}><option value="">All cities</option>{cities.map(c=><option key={c.city}>{c.city}</option>)}</select></div><span className="technical freshness">LAST BATCH · {stamp(state?.meta?.pathway?.last_batch_at)}</span></div><main key={location.pathname} className="route-content"><Outlet/></main></div>
+  <dialog ref={dialog} className="command-dialog" onCancel={()=>setCommand(false)} onClick={e=>{if(e.target===dialog.current)setCommand(false);}}><div className="command-input"><Search size={18}/><input autoFocus aria-label="Search commands and cities" placeholder="Search cities, pages…" value={query} onChange={e=>setQuery(e.target.value)}/><button className="icon-button" onClick={()=>setCommand(false)} aria-label="Close command palette"><X size={16}/></button></div><div className="command-results">{items.filter(([,label])=>label.toLowerCase().includes(query.toLowerCase())).map(([path,label,Icon])=><button key={path} onClick={()=>{navigate(`/app/${path}`);setCommand(false);}}><Icon size={17}/>{label}<span>WORKSPACE ↵</span></button>)}{cities.filter(c=>c.city.toLowerCase().includes(query.toLowerCase())).map(c=><button key={c.city} onClick={()=>{selectCity(c.city);navigate('/app/cities');setCommand(false);}}><Building2 size={17}/>{c.city}<span>{c.state}</span></button>)}</div></dialog>
+  </div>;
+}
+export function AppShell(){return <TelemetryProvider><Shell/></TelemetryProvider>;}

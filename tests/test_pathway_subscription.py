@@ -4,6 +4,7 @@ and actual non-empty stream execution with pw.run().
 """
 
 import time
+import datetime
 import pytest
 
 from src.main import make_pathway_sink
@@ -49,7 +50,7 @@ def test_pathway_sink_signature_compatibility():
 
     # 1. Native Pathway 0.33.0 keyword invocation (the exact cause of Render's unexpected keyword argument 'key' error)
     ev_kw = {
-        "timestamp": "2026-10-12T07:30:00Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "source": "traffic_cameras",
         "data": {"event_id": "SINK_KW_001", "traffic_flow": 0.9, "status": "severe_gridlock"},
         "location": {"lat": 13.08, "lon": 80.27},
@@ -64,7 +65,7 @@ def test_pathway_sink_signature_compatibility():
 
     # 2. Native Pathway positional invocation: (key, row, time, is_addition)
     ev_pos = {
-        "timestamp": "2026-10-12T07:31:00Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "source": "emergency_calls",
         "data": {"event_id": "SINK_POS_002", "call_type": "fire_alarm"},
         "location": {"lat": 13.05, "lon": 80.25},
@@ -75,7 +76,7 @@ def test_pathway_sink_signature_compatibility():
 
     # 3. Pathway deletion event (is_addition=False) - must NOT be ingested
     ev_del = {
-        "timestamp": "2026-10-12T07:32:00Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "source": "emergency_calls",
         "data": {"event_id": "SINK_DEL_003"},
         "location": {"lat": 13.05, "lon": 80.25},
@@ -88,7 +89,7 @@ def test_pathway_sink_signature_compatibility():
 
     # 4. Legacy single positional argument (row)
     ev_single = {
-        "timestamp": "2026-10-12T07:33:00Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "source": "weather_stations",
         "data": {"event_id": "SINK_LEGACY_004", "temperature": 34.5},
         "location": {"lat": 13.08, "lon": 80.27},
@@ -99,7 +100,7 @@ def test_pathway_sink_signature_compatibility():
 
     # 5. Future-proof extra kwargs
     ev_extra = {
-        "timestamp": "2026-10-12T07:34:00Z",
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         "source": "iot_sensors",
         "data": {"event_id": "SINK_EXTRA_005", "aqi": 180},
         "location": {"lat": 13.08, "lon": 80.27},
@@ -125,7 +126,7 @@ def test_pathway_stream_execution_with_pw_run_and_subscription():
     # 1. Non-empty streaming event generator
     def sample_event_stream():
         yield {
-            "timestamp": "2026-10-12T07:35:00Z",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "source": "traffic_cameras",
             "data": {
                 "event_id": "PW_STREAM_EXEC_001",

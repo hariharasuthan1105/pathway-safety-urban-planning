@@ -26,8 +26,8 @@ def _evaluate_anomaly(data: Any, rules: Dict[str, Any], location_counts: Dict[st
     processed = dict(data)
     source = processed.get("source", "")
     location = processed.get("location", {})
-    lat = location.get("lat", 0.0) if isinstance(location, dict) else 0.0
-    lon = location.get("lon", 0.0) if isinstance(location, dict) else 0.0
+    lat = (location.get("lat") or 0.0) if isinstance(location, dict) else 0.0
+    lon = (location.get("lon") or 0.0) if isinstance(location, dict) else 0.0
     location_key = f"{lat:.2f},{lon:.2f}"
     
     # Track location counts for social media spike detection
@@ -91,7 +91,12 @@ class AnomalyDetector:
         rules = self.rules
         location_counts = self.location_counts
 
-        def evaluate_instance_udf(data: Any) -> Any:
+        def evaluate_instance_udf(data: pw.Json) -> pw.Json:
+            result = _evaluate_anomaly(data, rules, location_counts)
+            from ..pathway_compat import IS_NATIVE_PATHWAY
+            return pw.Json(result) if IS_NATIVE_PATHWAY else result
+
+        def evaluate_compat_udf(data):
             return _evaluate_anomaly(data, rules, location_counts)
 
         if hasattr(pw, "udf") and callable(pw.udf):
@@ -104,7 +109,7 @@ class AnomalyDetector:
 
         try:
             from ..pathway_compat import udf as compat_udf
-            self._compat_udf = compat_udf(evaluate_instance_udf)
+            self._compat_udf = compat_udf(evaluate_compat_udf)
         except Exception:
             self._compat_udf = evaluate_instance_udf
 

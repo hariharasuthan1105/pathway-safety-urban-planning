@@ -45,7 +45,7 @@ class RAGSystem:
         llm_config = self.config.get('llm', {})
         
         self.api_key = os.getenv('GROQ_API_KEY') or llm_config.get('api_key', '')
-        if not self.api_key or self.api_key in ["YOUR_GROQ_API_KEY", "YOUR_OPENAI_API_KEY"]:
+        if not self.api_key or self.api_key.lower() in ["your_groq_api_key", "your_groq_api_key_here", "your_openai_api_key"]:
             logger.info("Groq API key not configured. Running in fallback Copilot mode.")
             self.has_valid_key = False
         else:
@@ -68,11 +68,11 @@ class RAGSystem:
             )
         else:
             self.provider = MockLLMProvider()
+        self._default_fallback = self.provider if not provider and not self.has_valid_key else None
 
         self.copilot_engine = CopilotEngine(self.config)
         self.documents: List[Dict[str, Any]] = []
 
-    @pw.udf
     def add_document(self, data: Dict[str, Any], source: str, location: Dict[str, Any]) -> bool:
         timestamp_str = datetime.datetime.now(datetime.timezone.utc).isoformat()
         doc = {
@@ -82,6 +82,7 @@ class RAGSystem:
             "location": location if isinstance(location, dict) else {}
         }
         self.documents.append(doc)
+        self.documents = self.documents[-2000:]
         logger.debug(f"Document added to RAG index from source {source}")
         return True
 
@@ -128,6 +129,9 @@ class RAGSystem:
             for c in correlations:
                 context_lines.append(f"- [{c.get('risk_level')}] {c.get('reason')} | Sources: {', '.join(c.get('sources', []))}")
 
+        context_lines.append("\n--- CITY TELEMETRY ---")
+        for city, summary in city_state.get("city_summaries", {}).items():
+            context_lines.append(f"- {city}: {json.dumps(summary)}")
         recent_events = city_state.get("recent_events", [])
         if recent_events:
             context_lines.append("\n--- RECENT STREAMING TELEMETRY EVENTS ---")
@@ -159,7 +163,7 @@ class RAGSystem:
             }
 
         # Check if LLM provider is configured
-        if not self.provider.is_configured():
+        if self.provider is self._default_fallback or not self.provider.is_configured():
             docs_str = ""
             q_terms = [t.lower() for t in question.split() if len(t) > 2]
             matched_docs = []
@@ -185,13 +189,23 @@ class RAGSystem:
                 latest_event_summary = f" Latest event: {d.get('event_id', 'unk')} ({d.get('event_type', 'incident')}) with severity {d.get('severity', 'LOW')} ({d.get('description', 'N/A')})."
 
             ans_text = (
-                f"[Grounded RAG Notice] GROQ_API_KEY is not configured in .env.\n"
+                f"Based on retrieved live telemetry — fallback Copilot mode.\n"
                 f"Live city risk index: {risk_score}/100 ({risk_lvl}).{latest_event_summary}\n"
                 f"Retrieved {len(relevant_docs)} live streaming events from RAG context index:\n"
                 f"{docs_str if docs_str else 'No events in active window.'}\n"
                 f"Set GROQ_API_KEY to enable full Groq LLM natural language synthesis."
             )
 
+            summaries = (city_state or {}).get("city_summaries", {})
+            selected = [(name, value) for name, value in summaries.items() if name.casefold() in question.casefold()]
+            ranked = selected or sorted(summaries.items(), key=lambda item: item[1].get("risk_score", 0), reverse=True)[:5]
+            if ranked:
+                ans_text += "\n\nCurrent city evidence:\n" + "\n".join(
+                    f"{name}: risk {value['risk_score']}/100 ({value['risk_level']}), "
+                    f"{value['event_count']} events, {value['anomaly_count']} anomalies. "
+                    f"Weather: {json.dumps(value.get('weather'))}. Air quality: {json.dumps(value.get('air_quality'))}."
+                    for name, value in ranked)
+            ans_text += "\nUncertainty: missing observations are unavailable; simulated sources are not real measurements."
             citations = []
             for doc in relevant_docs:
                 d_data = doc.get("data", {}) if isinstance(doc.get("data"), dict) else {}
@@ -212,11 +226,10 @@ class RAGSystem:
                 "evidence": citations[:5]
             }
 
+            raw_resp["provider"] = "deterministic_fallback"
             return self.copilot_engine.process_copilot_request(
-                question=question,
-                city_state=city_state or {},
-                raw_llm_response=raw_resp
-            )
+                question=question, city_state=city_state or {}, raw_llm_response=raw_resp)
+
 
         # Build Context from CityState + Recent Documents
         city_state_str = self.prepare_city_state_context(city_state) if city_state else "No city state supplied."
@@ -245,6 +258,15 @@ Provide your structured JSON response strictly adhering to the JSON schema.
             system_instruction=SYSTEM_GROUNDED_INSTRUCTION
         )
 
+        if response_dict.get("error"):
+            response_dict = {"answer": self.prepare_city_state_context(city_state or {}) +
+                             "\nGroq is unavailable. This assessment uses deterministic telemetry context.",
+                             "risk_level": (city_state or {}).get("overall_risk_level", "LOW"),
+                             "confidence": "LOW", "key_factors": (city_state or {}).get("contributing_factors", []),
+                             "provider": "deterministic_fallback"}
+        else:
+            response_dict["provider"] = "groq" if isinstance(self.provider, GroqProvider) else "test_provider"
+        response_dict["evidence"] = []  # Evidence is sourced locally, never accepted from model text.
         # Attach real evidence citations from indexed documents
         if relevant_docs:
             citations = []

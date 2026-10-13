@@ -68,15 +68,14 @@ def test_air_quality_source_anomaly(mock_get):
     assert event["data"]["anomaly"] is True
     assert aq.status == "LIVE"
 
-def test_gtfs_transit_unconfigured():
+def test_gtfs_transit_unconfigured(monkeypatch):
+    monkeypatch.delenv("GTFS_FEED_URL", raising=False)
     config = {'data_sources': {'transit': {'enabled': True}}}
     gtfs = GTFSTransitSource(config)
-    assert gtfs.status == "NOT CONFIGURED"
+    assert gtfs.status == "NOT_CONFIGURED"
     
     stream = gtfs._stream()
-    event = next(stream)
-    assert event["source"] == "gtfs_transit_api"
-    assert event["data"]["status"] == "NOT CONFIGURED"
+    assert list(stream) == []
 
 def test_webhook_ingestion():
     payload = {

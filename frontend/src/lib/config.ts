@@ -10,7 +10,7 @@ export const config = {
   ssePollIntervalMs: 3000,
 };
 
-if (config.isProd && !import.meta.env.VITE_API_BASE_URL) {
-  console.warn('[Config Warning] VITE_API_BASE_URL is unset in production build.');
+if (config.isProd && !rawBaseUrl?.trim()) {
+  throw new Error('Production API origin is missing. Set VITE_API_BASE_URL and rebuild.');
 }
 

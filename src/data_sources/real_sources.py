@@ -80,9 +80,9 @@ class WeatherSource(DataSource):
                     response = requests.get(url, timeout=5)
                     if response.status_code == 200:
                         cw = response.json().get('current_weather', {})
-                        temp = cw.get('temperature', 20.0)
-                        wind = cw.get('windspeed', 10.0)
-                        code = cw.get('weathercode', 0)
+                        temp = cw['temperature']
+                        wind = cw['windspeed']
+                        code = cw['weathercode']
                         
                         self.status = "LIVE"
                         self.last_updated = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S UTC")
@@ -105,6 +105,7 @@ class WeatherSource(DataSource):
                         logger.info(f"[Weather API] Ingested live weather for {c['city']}: {temp}°C, {self._get_weather_condition(code)}")
                         yield event
                     else:
+                        self.status = "DEGRADED"
                         logger.warning(f"[Weather API] HTTP error for {c['city']}: {response.status_code}")
                 except Exception as e:
                     logger.error(f"[Weather API] Connection failed for {c['city']}: {e}")
@@ -115,7 +116,7 @@ class WeatherSource(DataSource):
     @staticmethod
     def _get_weather_condition(code: int) -> str:
         conditions = {0: "Clear Sky", 1: "Mainly Clear", 2: "Partly Cloudy", 3: "Overcast", 45: "Fog", 61: "Rain Showers", 95: "Thunderstorm"}
-        return conditions.get(code, "Clear")
+        return conditions.get(code, "Unclassified weather code")
 
 class AirQualitySource(DataSource):
     name = "air_quality_api"
@@ -142,10 +143,10 @@ class AirQualitySource(DataSource):
                     response = requests.get(url, timeout=5)
                     if response.status_code == 200:
                         curr = response.json().get('current', {})
-                        aqi = curr.get('us_aqi', 50)
-                        pm25 = curr.get('pm2_5', 12.0)
-                        pm10 = curr.get('pm10', 20.0)
-                        no2 = curr.get('nitrogen_dioxide', 15.0)
+                        aqi = curr['us_aqi']
+                        pm25 = curr['pm2_5']
+                        pm10 = curr['pm10']
+                        no2 = curr.get('nitrogen_dioxide')
 
                         self.status = "LIVE"
                         self.last_updated = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S UTC")
@@ -173,6 +174,7 @@ class AirQualitySource(DataSource):
                         logger.info(f"[Air Quality API] Ingested live AQI for {c['city']}: {aqi} ({severity})")
                         yield event
                     else:
+                        self.status = "DEGRADED"
                         logger.warning(f"[Air Quality API] HTTP error for {c['city']}: {response.status_code}")
                 except Exception as e:
                     logger.error(f"[Air Quality API] Connection failed for {c['city']}: {e}")
@@ -185,8 +187,9 @@ class GTFSTransitSource(DataSource):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.feed_url = self.config.get('data_sources', {}).get('transit', {}).get('feed_url')
-        self.status = "LIVE" if self.feed_url else "NOT CONFIGURED"
+        self.feed_url = (self.config.get('data_sources', {}).get('transit', {}).get('feed_url') or __import__('os').getenv('GTFS_FEED_URL') or '').strip()
+        self.status = "READY" if self.feed_url else "NOT_CONFIGURED"
+        self.last_checked_at = None
         self.last_updated = "N/A"
 
     def _define_schema(self):
@@ -197,37 +200,20 @@ class GTFSTransitSource(DataSource):
         return pw.io.python.read(subject, schema=self.schema)
 
     def _stream(self):
+        # This adapter currently probes reachability; it does not decode GTFS.
+        # Neither configuration notices nor HTTP success are transit observations.
+        yield from ()
         if not self.feed_url:
-            logger.info("[GTFS Transit API] No GTFS feed_url configured. Connector marked NOT CONFIGURED.")
-            # Emit single initial notice event and pause
-            yield create_city_event(
-                source="gtfs_transit_api",
-                event_type="transit_status",
-                latitude=self.config.get('location', {}).get('lat', 40.7128),
-                longitude=self.config.get('location', {}).get('lon', -74.0060),
-                severity="LOW",
-                data={"status": "NOT CONFIGURED", "message": "Set GTFS_FEED_URL in .env to activate live transit streaming."}
-            )
-            while True:
-                time.sleep(300)
-
+            logger.info("[GTFS Transit API] No GTFS feed_url configured.")
+            return
         while True:
             try:
                 resp = requests.get(self.feed_url, timeout=5)
-                if resp.status_code == 200:
-                    self.status = "LIVE"
-                    self.last_updated = datetime.datetime.now(datetime.timezone.utc).strftime("%H:%M:%S UTC")
-                    yield create_city_event(
-                        source="gtfs_transit_api",
-                        event_type="transit_feed_update",
-                        latitude=self.config.get('location', {}).get('lat', 40.7128),
-                        longitude=self.config.get('location', {}).get('lon', -74.0060),
-                        severity="LOW",
-                        data={"feed_status": "active", "content_length": len(resp.content)}
-                    )
-            except Exception as e:
-                logger.warning(f"[GTFS Transit API] Fetch failed: {e}")
+                self.status = "REACHABLE" if resp.status_code == 200 else "DEGRADED"
+            except requests.RequestException:
                 self.status = "OFFLINE"
+                logger.warning("[GTFS Transit API] Feed request failed")
+            self.last_checked_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
             time.sleep(60)
 
 class WebhookSource(DataSource):
@@ -267,8 +253,8 @@ def ingest_webhook_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError("Webhook payload must be a valid JSON dictionary.")
 
     event_type = payload.get("event_type", "external_alert")
-    lat = payload.get("latitude", payload.get("location", {}).get("lat", 40.7128))
-    lon = payload.get("longitude", payload.get("location", {}).get("lon", -74.0060))
+    lat = payload.get("latitude", payload.get("location", {}).get("lat"))
+    lon = payload.get("longitude", payload.get("location", {}).get("lon"))
     severity = payload.get("severity", "HIGH").upper()
     source = payload.get("source", "external_webhook")
     data_content = payload.get("data", payload)
@@ -283,30 +269,18 @@ def ingest_webhook_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         event_id=payload.get("event_id"),
         timestamp=payload.get("timestamp")
     )
-    WEBHOOK_EVENT_QUEUE.put(event)
-
-    # Stream event into active Pathway tables
-    pushed = False
-    try:
+    # A running connector consumes the queue exactly once. Standalone tests
+    # without a pipeline still feed the shared runtime directly.
+    from ..pathway_compat import IS_NATIVE_PATHWAY
+    if IS_NATIVE_PATHWAY:
+        WEBHOOK_EVENT_QUEUE.put(event)
+    else:
         from ..pathway_compat import _ACTIVE_STREAMS
-        for item in list(_ACTIVE_STREAMS):
-            tbl = item[0] if isinstance(item, tuple) else item
-            subject = item[1] if isinstance(item, tuple) else getattr(tbl, "generator", None)
-            if subject and getattr(subject, "source", None) and isinstance(subject.source, WebhookSource):
-                tbl.publish(event)
-                pushed = True
-    except Exception as e:
-        logger.debug(f"Pathway stream direct publish fallback: {e}")
-
-    # Fallback for standalone unit tests when no Pathway pipeline streams are active
-    if not pushed:
-        try:
-            from ..pathway_compat import _ACTIVE_STREAMS
-            if not _ACTIVE_STREAMS:
-                from ..processing.shared_state import ingest_runtime_event
-                ingest_runtime_event(event)
-        except Exception:
-            pass
+        if _ACTIVE_STREAMS:
+            WEBHOOK_EVENT_QUEUE.put(event)
+        else:
+            from ..processing.shared_state import ingest_runtime_event
+            ingest_runtime_event(event)
 
     return event
 

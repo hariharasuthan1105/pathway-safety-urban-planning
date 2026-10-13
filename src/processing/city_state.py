@@ -7,7 +7,10 @@ and source data freshness into a single real-time queryable state.
 """
 
 import datetime
+import os
 import logging
+import threading
+from functools import wraps
 from typing import Dict, Any, List
 
 from .zones import ZoneManager
@@ -18,8 +21,24 @@ from .anomaly_detection import AnomalyDetector
 
 logger = logging.getLogger(__name__)
 
+def is_status_notice(event):
+    data = event.get("data", {})
+    if not isinstance(data, dict):
+        data = {}
+    kind = data.get("event_type", event.get("event_type"))
+    return kind in {"transit_status", "transit_feed_update", "connector_status"} or data.get("record_kind") == "connector_status"
+
+
+def synchronized(method):
+    @wraps(method)
+    def locked(self, *args, **kwargs):
+        with self._lock:
+            return method(self, *args, **kwargs)
+    return locked
+
 class CityStateManager:
     def __init__(self, config: Dict[str, Any] = None):
+        self._lock = threading.RLock()
         self.config = config or {}
         self.zone_manager = ZoneManager(self.config)
         self.rolling_aggregator = RollingWindowAggregator(max_history_minutes=60)
@@ -30,9 +49,13 @@ class CityStateManager:
         self.source_freshness: Dict[str, Dict[str, Any]] = {
             "open_meteo_weather": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "LIVE"},
             "open_meteo_air_quality": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "LIVE"},
-            "webhook_ingestion": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "LIVE"},
-            "simulation_generator": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "SIMULATION"}
+            "webhook_ingestion": {"last_update": None, "status": "WAITING", "event_count": 0, "mode": "EVENT_DRIVEN"},
+            "simulation_generator": {"last_update": None, "status": "WAITING", "event_count": 0, "mode": "SIMULATED"}
         }
+        feed_url = (self.config.get("data_sources", {}).get("transit", {}).get("feed_url") or os.getenv("GTFS_FEED_URL") or "").strip()
+        self.source_freshness["gtfs_transit_api"] = {
+            "last_update": None, "status": "WAITING" if feed_url else "NOT_CONFIGURED",
+            "event_count": 0, "mode": "LIVE" if feed_url else "NOT_CONFIGURED"}
         self.intelligence_feed: List[Dict[str, Any]] = []
 
     def update_source_freshness(self, source_name: str, mode: str = "LIVE", status: str = "LIVE"):
@@ -46,6 +69,7 @@ class CityStateManager:
         entry["mode"] = mode
         entry["event_count"] += 1
 
+    @synchronized
     def ingest_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
         """
         Ingests a single streaming event, assigns zone, updates rolling aggregator and source freshness.
@@ -53,12 +77,17 @@ class CityStateManager:
         if not isinstance(event, dict):
             return event
 
+        if is_status_notice(event):
+            return event
+
         # Ensure zone assignment
         self.zone_manager.assign_zone(event)
         
         # Track source freshness
         source = event.get("source", "unknown")
-        data_mode = event.get("mode", "LIVE").upper()
+        if source in {"traffic_simulation", "twitter", "police_scanner", "city_sensors", "simulation_generator", "transit_simulation", "planning_traffic_simulation", "environment_simulation"}:
+            event["data"]["mode"] = "SIMULATED"
+        data_mode = event.get("mode", event.get("data", {}).get("mode", "LIVE")).upper()
         self.update_source_freshness(source_name=source, mode=data_mode, status="LIVE")
 
         # Process through anomaly UDF
@@ -69,6 +98,7 @@ class CityStateManager:
 
         return processed_event
 
+    @synchronized
     def get_live_city_state(self) -> Dict[str, Any]:
         """
         Computes the complete, up-to-the-second Live City State.
@@ -174,14 +204,19 @@ class CityStateManager:
                         cs["weather"] = {
                             "temperature": data.get("temperature"),
                             "condition": data.get("condition"),
-                            "wind_speed": data.get("wind_speed")
+                            "wind_speed": data.get("wind_speed"), "observed_at": ev.get("timestamp")
                         }
                     if ev.get("source") == "air_quality_api" or data.get("event_type") == "air_quality_update":
                         cs["air_quality"] = {
                             "aqi": data.get("air_quality_index"),
                             "pm2_5": data.get("pm2_5"),
-                            "pm10": data.get("pm10")
+                            "pm10": data.get("pm10"), "no2": data.get("no2"), "observed_at": ev.get("timestamp")
                         }
+
+                    if ev.get("source") == "traffic_simulation":
+                        cs["traffic"] = {"congestion_level": data.get("congestion_level"),
+                            "avg_speed_kmh": data.get("average_speed"), "vehicle_count": data.get("vehicle_count"),
+                            "observed_at": ev.get("timestamp"), "mode": "SIMULATED"}
 
             for cs in city_summaries.values():
                 score = (cs["critical_count"] * 30) + (cs["high_count"] * 18) + (cs["anomaly_count"] * 15) + (cs["event_count"] * 2)

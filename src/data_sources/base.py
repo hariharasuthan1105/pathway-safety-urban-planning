@@ -30,29 +30,15 @@ class GeneratorConnectorSubject(_PathwayConnectorSubject):
         self.source = source_instance
 
     def next(self, **kwargs):
-        if getattr(self, "_table", None) is not None:
-            try:
-                self._table.publish(kwargs)
-            except Exception:
-                pass
-        try:
-            super().next(**kwargs)
-        except Exception:
-            pass
+        # Both native and compatibility parents deliver exactly once.
+        super().next(**kwargs)
 
     def run(self):
-        try:
-            for event in self.generator_fn():
-                if isinstance(event, dict):
-                    payload = {
-                        "timestamp": str(event.get("timestamp", "")),
-                        "source": str(event.get("source", "")),
-                        "data": event.get("data", {}),
-                        "location": event.get("location", {})
-                    }
-                    self.next(**payload)
-        except Exception as e:
-            logger.error(f"[ConnectorSubject] Stream generator error: {e}")
+        for event in self.generator_fn():
+            if isinstance(event, dict):
+                self.next(timestamp=str(event.get("timestamp", "")),
+                          source=str(event.get("source", "")),
+                          data=event.get("data", {}), location=event.get("location", {}))
 
 class DataSource(ABC):
     name: str = "base"
@@ -136,6 +122,7 @@ class DataSourceManager:
         for src in self.sources:
             status_map[src.name] = {
                 "status": getattr(src, "status", "RUNNING"),
-                "last_updated": getattr(src, "last_updated", "N/A")
+                "last_updated": getattr(src, "last_updated", "N/A"),
+                "last_checked_at": getattr(src, "last_checked_at", None)
             }
         return status_map

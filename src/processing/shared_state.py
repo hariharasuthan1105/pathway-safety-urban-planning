@@ -9,7 +9,7 @@ import threading
 import logging
 from typing import Dict, Any, Optional
 
-from .city_state import CityStateManager
+from .city_state import CityStateManager, is_status_notice
 from .rag_system import RAGSystem
 
 logger = logging.getLogger("shared_state")
@@ -48,6 +48,8 @@ def ingest_runtime_event(event: Dict[str, Any], config: Optional[Dict[str, Any]]
     rag = get_shared_rag_system(config)
     
     processed = mgr.ingest_event(event)
+    if is_status_notice(processed):
+        return processed
     data = processed.get("data", {}) if isinstance(processed.get("data"), dict) else {}
     source = processed.get("source", "unknown")
     location = processed.get("location", {}) if isinstance(processed.get("location"), dict) else {}

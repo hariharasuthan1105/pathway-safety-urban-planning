@@ -1,0 +1,4 @@
+-r requirements-core.txt
+pytest>=7.4.0,<10
+httpx>=0.27,<1
+pandas>=2.0.0,<4

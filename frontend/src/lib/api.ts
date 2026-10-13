@@ -60,6 +60,7 @@ export async function fetchApi<T = any>(endpoint: string, options: FetchOptions 
         throw new ApiError(response.status, errorData.detail || `HTTP Error ${response.status}`, errorData);
       }
 
+      if (response.status === 204) return undefined as T;
       return await response.json();
     } catch (err: any) {
       clearTimeout(timer);

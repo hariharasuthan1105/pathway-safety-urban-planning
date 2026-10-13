@@ -1,25 +1,48 @@
 services:
-  # Python FastAPI Web Service + Pathway Telemetry Engine
   - type: web
     name: urban-intelligence-backend
-    env: python
-    buildCommand: "pip install -r requirements-render.txt"
-    startCommand: "python src/main.py --host 0.0.0.0 --port $PORT"
+    runtime: python
+    # Paid instance required for the attached authentication disk.
+    plan: 0.5c-512mb
+    autoDeployTrigger: off
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: python src/main.py --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    numInstances: 1
+    disk:
+      name: operator-state
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11.11
       - key: AUTH_DB_PATH
-        value: ./auth_store.db
-      - key: PATHWAY_MODE
+        value: /var/data/auth_store.db
+      - key: DATA_MODE
         value: hybrid
-
-  # React + TypeScript + Vite SPA Frontend
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: COOKIE_SAMESITE
+        value: none
+      - key: CORS_ORIGINS
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: llama-3.3-70b-versatile
   - type: web
     name: urban-intelligence-frontend
-    env: static
-    buildCommand: "cd frontend && npm install && npm run build"
-    staticPublishPath: "./frontend/dist"
+    runtime: static
+    autoDeployTrigger: off
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        # Supply the actual verified HTTPS backend origin before building.
+        sync: false
+      - key: NODE_VERSION
+        value: "22"
     routes:
       - type: rewrite
-        source: "/*"
-        destination: "/index.html"
+        source: /*
+        destination: /index.html
