@@ -1,5 +1,21 @@
 import { test, expect } from '@playwright/test';
 
+test('a stale initial session check cannot undo successful signup', async ({page}) => {
+  let release!:()=>void;
+  const gate=new Promise<void>(resolve=>{release=resolve;});
+  await page.route('**/api/auth/me',async route=>{await gate;await route.fulfill({status:401,contentType:'application/json',body:'{"detail":"No initial session"}'});});
+  await page.goto('/signup');
+  await page.getByPlaceholder('Control Room Operator').fill('Session Race Operator');
+  await page.getByPlaceholder('operator@urbanintel.in').fill(`race_${Date.now()}@example.com`);
+  await page.locator('input[type=password]').nth(0).fill('LocalTestPassword123!');
+  await page.locator('input[type=password]').nth(1).fill('LocalTestPassword123!');
+  await page.locator('button[type=submit]').click();
+  await expect(page.locator('h1')).toContainText('Session Race Operator');
+  const completed=page.waitForResponse('**/api/auth/me');release();await completed;
+  await page.locator('.app-sidebar a[href="/app/digital-twin"]').click();
+  await expect(page.locator('h1')).toContainText('Metropolis workspace');
+});
+
 test.describe('Authentication & Route Guard E2E Flow (§4, §9)', () => {
   test('Unauthenticated user accessing protected route is redirected to login', async ({ page }) => {
     await page.goto('/app/overview');

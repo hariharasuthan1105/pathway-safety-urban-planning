@@ -1,142 +1,54 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import type { CitySummary, TelemetryEvent } from '../../types';
+import { Crosshair, Layers, Maximize2, RotateCcw } from 'lucide-react';
+import { useTelemetry, coordinates, eventKey } from '../../context/TelemetryContext';
+import { riskColor, RiskBadge, stamp } from '../../components/ui/Workstation';
+import type { TelemetryEvent } from '../../types';
 
-interface MapProps {
-  cities: CitySummary[];
-  events?: TelemetryEvent[];
-  selectedCity?: string;
-  onSelectCity?: (cityId: string) => void;
+export function SouthIndiaMap() {
+  const {cities,state,selectedCity,selectedEvent,selectCity,selectEvent,reset,region}=useTelemetry();
+  const root=useRef<HTMLDivElement>(null), map=useRef<L.Map|null>(null), markers=useRef<L.LayerGroup|null>(null);
+  const [mapCenter,setMapCenter]=useState('12.70000,79.00000');
+  const [cursor,setCursor]=useState('WGS 84 · EPSG:4326'), [message,setMessage]=useState('Select a city or incident to inspect'),[layers,setLayers]=useState(false),[showCities,setShowCities]=useState(true),[showEvents,setShowEvents]=useState(true),[expanded,setExpanded]=useState(false),[overlap,setOverlap]=useState<TelemetryEvent[]>([]),[tileError,setTileError]=useState(false);
+  useEffect(()=>{if(!root.current)return;const m=L.map(root.current,{zoomControl:false,minZoom:4,maxZoom:18}).setView([12.7,79],6);
+    L.control.zoom({position:'bottomright'}).addTo(m);L.control.scale({imperial:false,position:'bottomleft'}).addTo(m);
+    const tile=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:19}).addTo(m);
+    tile.on('tileerror',()=>setTileError(true));
+    markers.current=L.layerGroup().addTo(m);map.current=m;
+    m.on('moveend',()=>setMapCenter(`${m.getCenter().lat.toFixed(5)},${m.getCenter().lng.toFixed(5)}`));
+    m.on('mousemove',(e:L.LeafletMouseEvent)=>setCursor(`${e.latlng.lat.toFixed(5)}° N  /  ${e.latlng.lng.toFixed(5)}° E`));
+    m.on('click',()=>{setMessage('No matching entity at this location. Select a marked city or incident.');setOverlap([]);});
+    const resize=new ResizeObserver(()=>m.invalidateSize());resize.observe(root.current);
+    return()=>{resize.disconnect();m.remove();map.current=null;};
+  },[]);
+  useEffect(()=>{const group=markers.current;if(!group)return;group.clearLayers();
+    if(showCities)cities.filter(c=>region==='ALL'||c.state===region).forEach(c=>{
+      const active=selectedCity?.city===c.city&&!selectedEvent;
+      const icon=L.divIcon({className:'city-marker',html:`<span class="${active?'reticle':''}" style="--marker:${riskColor(c.risk_level)}"><i></i></span>`,iconSize:[30,30],iconAnchor:[15,15]});
+      const marker=L.marker([c.lat,c.lon],{icon,title:`${c.city}: ${c.risk_level} risk`,keyboard:true,bubblingMouseEvents:false});
+      const tip=document.createElement('span');tip.textContent=`${c.city} · ${c.risk_level} ${c.risk_score}/100`;marker.bindTooltip(tip);
+      marker.on('click',()=>{selectCity(c.city);setOverlap([]);setMessage(`${c.city} selected · backend coordinates`);});group.addLayer(marker);
+    });
+    const grouped=new Map<string,TelemetryEvent[]>();
+    if(showEvents)(state?.recent_events||[]).filter(e=>region==='ALL'||cities.some(c=>c.state===region&&c.city===e.location.city)).forEach(e=>{const pos=coordinates(e);if(pos){const key=pos.join(',');grouped.set(key,[...(grouped.get(key)||[]),e]);}});
+    grouped.forEach(events=>{const e=events.find(e=>selectedEvent&&eventKey(e)===eventKey(selectedEvent))||events[0],pos=coordinates(e)!;
+      const icon=L.divIcon({className:'event-marker',html:`<span style="border-color:${riskColor(e.severity)};color:${riskColor(e.severity)}" class="${selectedEvent&&eventKey(e)===eventKey(selectedEvent)?'active':''}">${events.length>1?events.length:'!'}</span>`,iconSize:[26,26],iconAnchor:[13,13]});
+      const marker=L.marker(pos,{icon,title:`${events.length} incident(s) at ${pos.join(', ')}`,bubblingMouseEvents:false});
+      marker.on('click',()=>{if(events.length>1)setOverlap(events);else{selectEvent(e);setOverlap([]);}setMessage('Incident coordinates from source record');});group.addLayer(marker);
+    });
+  },[cities,state,showCities,showEvents,selectedCity,selectedEvent,region,selectCity,selectEvent]);
+  const target=selectedEvent?coordinates(selectedEvent):selectedCity?[selectedCity.lat,selectedCity.lon]:null;
+  const lat=target?.[0],lon=target?.[1];
+  useEffect(()=>{if(lat===undefined||lon===undefined){map.current?.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:false});return;}map.current?.flyTo([lat,lon],selectedEvent?14:11,{duration:1.1,animate:!matchMedia('(prefers-reduced-motion: reduce)').matches});},[lat,lon,selectedEvent?eventKey(selectedEvent):null]);
+  const resetMap=()=>{reset();setOverlap([]);map.current?.fitBounds([[8,75],[18,84]],{padding:[20,20],animate:!matchMedia('(prefers-reduced-motion: reduce)').matches});};
+  return <section className={`map-workspace ${expanded?'expanded':''}`} aria-label="South India geographic workspace">
+    <div className="map-top"><span className="eyebrow"><Crosshair size={14}/> REGIONAL SPATIAL VIEW</span><div className="map-tools"><button aria-label="Map layers" aria-expanded={layers} onClick={()=>setLayers(!layers)}><Layers size={16}/></button><button aria-label="Return to region" onClick={resetMap}><RotateCcw size={16}/></button><button aria-label={expanded?'Exit expanded map':'Expand map'} onClick={()=>setExpanded(!expanded)}><Maximize2 size={16}/></button></div></div>
+    <div ref={root} className="map-canvas" data-center={mapCenter}/>
+    <div className="north-indicator" aria-label="North">N<span>↑</span></div>
+    {layers&&<div className="map-layer-panel"><strong>Visible layers</strong><label><input type="checkbox" checked={showCities} onChange={e=>setShowCities(e.target.checked)}/> City risk</label><label><input type="checkbox" checked={showEvents} onChange={e=>setShowEvents(e.target.checked)}/> Incident records</label><small>Traffic incidents may be simulated.</small></div>}
+    {overlap.length>0&&<div className="map-overlap"><button className="text-link" onClick={()=>setOverlap([])}>Close location list</button><h3>{overlap.length} records at this location</h3>{overlap.map(e=><button key={eventKey(e)} onClick={()=>{selectEvent(e);setOverlap([]);}}><RiskBadge level={e.severity}/><span>{e.event_type}<small>{stamp(e.timestamp)}</small></span></button>)}</div>}
+    <div className="map-legend">{['LOW','MODERATE','HIGH','CRITICAL'].map(l=><RiskBadge key={l} level={l}/>)}</div>
+    <footer className="map-footer"><span>{cursor}</span><span>{tileError?'Basemap unavailable · markers remain accurate':message}</span></footer>
+  </section>;
 }
-
-export const SouthIndiaMap: React.FC<MapProps> = ({
-  cities,
-  events = [],
-  selectedCity,
-  onSelectCity,
-}) => {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const leafletMap = useRef<L.Map | null>(null);
-  const markersGroup = useRef<L.LayerGroup | null>(null);
-
-  useEffect(() => {
-    if (!mapRef.current || leafletMap.current) return;
-
-    // Center of South India (Tamil Nadu, Kerala, Andhra Pradesh)
-    const map = L.map(mapRef.current, {
-      zoomControl: true,
-      attributionControl: true,
-    }).setView([11.5, 78.5], 7);
-
-    // Standard OpenStreetMap Tile Provider (Dark styling applied via CSS filter)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors',
-    }).addTo(map);
-
-    markersGroup.current = L.layerGroup().addTo(map);
-    leafletMap.current = map;
-
-    return () => {
-      map.remove();
-      leafletMap.current = null;
-    };
-  }, []);
-
-  // Update Markers & Traffic Rings when cities/events change
-  useEffect(() => {
-    if (!leafletMap.current || !markersGroup.current) return;
-    markersGroup.current.clearLayers();
-
-    cities.forEach((city) => {
-      const riskLevel = city.risk_level || 'LOW';
-      const color =
-        riskLevel === 'CRITICAL' ? '#EF4444' :
-        riskLevel === 'HIGH' ? '#F97316' :
-        riskLevel === 'MODERATE' ? '#F5B301' : '#22C55E';
-
-      // Traffic Congestion Ring Radius
-      const congestion = city.traffic?.congestion_level || 0.2;
-      const ringRadius = 12 + congestion * 18;
-
-      const ringCircle = L.circleMarker([city.lat, city.lon], {
-        radius: ringRadius,
-        fillColor: color,
-        color: color,
-        weight: 1.5,
-        opacity: 0.8,
-        fillOpacity: 0.15,
-      });
-      markersGroup.current?.addLayer(ringCircle);
-
-      // Custom City Pin Icon
-      const customIcon = L.divIcon({
-        className: 'custom-city-pin',
-        html: `
-          <div style="background-color: ${color}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px ${color}; cursor: pointer;"></div>
-        `,
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-      });
-
-      const marker = L.marker([city.lat, city.lon], { icon: customIcon });
-
-      const w = city.weather || {};
-      const aq = city.air_quality || {};
-      const tf = city.traffic || {};
-
-      marker.bindPopup(`
-        <div style="font-family: sans-serif; padding: 4px; max-width: 220px; color: #070B14;">
-          <h4 style="margin: 0 0 2px 0; font-size: 14px; font-weight: 700;">${city.city} (${city.state})</h4>
-          <div style="font-size: 11px; margin-bottom: 6px; font-weight: 600; color: ${color};">
-            Risk Score: ${city.risk_score}/100 (${city.risk_level})
-          </div>
-          <div style="font-size: 11px; line-height: 1.5; color: #334155;">
-            <div>🌡️ Weather: ${w.temperature ? `${w.temperature}°C, ${w.condition}` : 'Syncing'}</div>
-            <div>🫁 AQI: ${aq.aqi ? aq.aqi : '--'} | PM2.5: ${aq.pm2_5 ? aq.pm2_5 : '--'}</div>
-            <div>🚘 Traffic: ${tf.avg_speed_kmh ? `${tf.avg_speed_kmh} km/h` : '--'} (${(congestion * 100).toFixed(0)}% busy)</div>
-          </div>
-        </div>
-      `);
-
-      marker.on('click', () => {
-        if (onSelectCity) onSelectCity(city.city.toLowerCase());
-      });
-
-      markersGroup.current?.addLayer(marker);
-    });
-
-    // Render Event Markers
-    events.forEach((ev) => {
-      const lat = ev.location?.lat || ev.location?.latitude;
-      const lon = ev.location?.lon || ev.location?.longitude;
-      if (typeof lat === 'number' && typeof lon === 'number') {
-        const evCircle = L.circleMarker([lat, lon], {
-          radius: ev.severity === 'CRITICAL' ? 10 : 6,
-          fillColor: ev.severity === 'CRITICAL' ? '#EF4444' : '#3B82F6',
-          color: '#FFFFFF',
-          weight: 1,
-          opacity: 0.9,
-          fillOpacity: 0.7,
-        });
-        markersGroup.current?.addLayer(evCircle);
-      }
-    });
-  }, [cities, events, onSelectCity]);
-
-  // Handle FlyTo on selected city
-  useEffect(() => {
-    if (!leafletMap.current || !selectedCity) return;
-    const target = cities.find((c) => c.city.toLowerCase() === selectedCity.toLowerCase());
-    if (target) {
-      leafletMap.current.flyTo([target.lat, target.lon], 11, { duration: 1.2 });
-    }
-  }, [selectedCity, cities]);
-
-  return (
-    <div className="relative w-full h-full min-h-[400px] rounded-2xl overflow-hidden glass-surface spatial-map-container">
-      <div ref={mapRef} className="w-full h-full min-h-[400px]" />
-    </div>
-  );
-};

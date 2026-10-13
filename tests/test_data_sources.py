@@ -1,6 +1,17 @@
 import pytest
 from src.data_sources import SocialMediaSource, PublicSafetySource, IoTSensorSource
 
+def test_urban_planning_generators_have_labelled_regional_records():
+    from src.data_sources import TransitSource, TrafficSource, EnvironmentSource
+    for source_type in [TransitSource, TrafficSource, EnvironmentSource]:
+        source = source_type({})
+        event = next(source._stream())
+        assert event['data']['mode'] == 'SIMULATED'
+        assert 8 <= event['location']['lat'] <= 19
+        assert 74 <= event['location']['lon'] <= 85
+        assert event['data']['city']
+        assert source.get_stream() is not None
+
 def test_social_media_source():
     config = {
         'mode': 'public_safety',

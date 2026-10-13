@@ -28,7 +28,7 @@ class GroqProvider(BaseLLMProvider):
         self.temperature = temperature
 
     def is_configured(self) -> bool:
-        return bool(self.api_key and self.api_key not in ["YOUR_GROQ_API_KEY", "YOUR_OPENAI_API_KEY"])
+        return bool(self.api_key and self.api_key.lower() not in ["your_groq_api_key", "your_groq_api_key_here", "your_openai_api_key"])
 
     def generate_structured_response(self, prompt: str, system_instruction: str = "") -> Dict[str, Any]:
         if not self.is_configured():
@@ -44,7 +44,7 @@ class GroqProvider(BaseLLMProvider):
 
         try:
             from groq import Groq
-            client = Groq(api_key=self.api_key)
+            client = Groq(api_key=self.api_key, timeout=20.0, max_retries=0)
 
             messages = []
             if system_instruction:
@@ -62,10 +62,10 @@ class GroqProvider(BaseLLMProvider):
             return self._parse_json_response(raw_text)
 
         except Exception as e:
-            logger.error(f"[GroqProvider] Error generating response: {e}")
+            logger.error("[GroqProvider] Request failed (%s)", type(e).__name__)
             return {
-                "error": str(e),
-                "answer": f"Error communicating with Groq LLM provider: {str(e)}",
+                "error": "PROVIDER_UNAVAILABLE",
+                "answer": "Groq unavailable; deterministic fallback required.",
                 "risk_level": "UNKNOWN",
                 "confidence": "LOW",
                 "affected_zones": [],

@@ -34,6 +34,38 @@ logger = logging.getLogger("webhook_server")
 
 # Global handle for AI RAG query handler function
 _AI_QUERY_HANDLER: Optional[Any] = None
+_SOURCE_STATUS_PROVIDER = None
+
+def register_source_status_provider(provider):
+    global _SOURCE_STATUS_PROVIDER
+    _SOURCE_STATUS_PROVIDER = provider
+
+def source_freshness_report(state):
+    """Observation history and current connector availability are separate facts."""
+    freshness = {key: dict(value) for key, value in state.get("data_freshness", {}).items()}
+    runtime = _SOURCE_STATUS_PROVIDER() if _SOURCE_STATUS_PROVIDER else {}
+    aliases = {"webhook_api": "webhook_ingestion", "social_media": "twitter",
+               "public_safety": "police_scanner", "iot_sensors": "city_sensors"}
+    simulated = {"traffic_simulation", "twitter", "police_scanner", "city_sensors",
+                 "simulation_generator", "transit_simulation",
+                 "planning_traffic_simulation", "environment_simulation"}
+    for connector_id, connector in runtime.items():
+        key = aliases.get(connector_id, connector_id)
+        mode = "SIMULATED" if key in simulated else "EVENT_DRIVEN" if key == "webhook_ingestion" else "LIVE"
+        entry = freshness.setdefault(key, {"last_update": None, "event_count": 0, "mode": mode, "status": "WAITING"})
+        observed = entry.get("status", "WAITING")
+        status_value = connector.get("status", "WAITING").replace(" ", "_")
+        entry["observation_status"] = observed
+        entry["connector_status"] = status_value
+        if status_value in {"OFFLINE", "DEGRADED", "NOT_CONFIGURED"}:
+            entry["status"] = status_value
+        elif not entry.get("event_count"):
+            entry["status"] = status_value if status_value in {"READY", "REACHABLE"} else "WAITING"
+        entry["last_checked_at"] = connector.get("last_checked_at")
+        if status_value == "NOT_CONFIGURED":
+            entry["mode"] = "NOT_CONFIGURED"
+    return freshness
+
 
 def register_ai_query_handler(handler: Any):
     """Registers global handler function for POST /api/ask endpoint."""
@@ -172,23 +204,55 @@ async def get_state(current_user: Dict[str, Any] = Depends(get_current_user)):
         city_state_mgr = get_shared_city_state_manager()
         state = city_state_mgr.get_live_city_state()
 
-        # Enrich state with metadata and source provenance envelopes
+        freshness = source_freshness_report(state)
+        state["data_freshness"] = freshness
+        timestamps = [v["last_update"] for v in freshness.values() if v.get("last_update")]
+        last_batch = max(timestamps) if timestamps else None
         state["meta"] = {
             "mode": os.getenv("DATA_MODE", "HYBRID").upper(),
             "server_time": datetime.now(timezone.utc).isoformat(),
-            "state_version": int(time.time() * 10),
-            "pathway": {
-                "status": "RUNNING",
-                "last_batch_at": datetime.now(timezone.utc).isoformat()
-            }
+            "state_version": sum(v.get("event_count", 0) for v in freshness.values()),
+            "pathway": {"status": "RECEIVING" if last_batch else "WAITING", "last_batch_at": last_batch}
         }
-        state["sources"] = [
-            {"id": "weather_api", "label": "WEATHER API (OPEN-METEO)", "mode": "LIVE", "status": "LIVE", "last_ok_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "air_quality_api", "label": "AIR QUALITY API (OPEN-METEO)", "mode": "LIVE", "status": "LIVE", "last_ok_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "traffic_simulation", "label": "TRAFFIC SIMULATION STREAM", "mode": "SIMULATED", "status": "LIVE", "last_ok_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "webhook", "label": "WEBHOOK INGESTION", "mode": "EVENT_DRIVEN", "status": "ACTIVE", "last_ok_at": datetime.now(timezone.utc).isoformat()},
-            {"id": "gtfs_transit", "label": "GTFS TRANSIT INTERFACE", "mode": "NOT_CONFIGURED", "status": "NOT_CONFIGURED", "last_ok_at": "N/A"}
-        ]
+        specs = [("weather_api", "WEATHER API (OPEN-METEO)", "LIVE"),
+                 ("air_quality_api", "AIR QUALITY API (OPEN-METEO)", "LIVE"),
+                 ("traffic_simulation", "TRAFFIC SIMULATION STREAM", "SIMULATED"),
+                 ("webhook_ingestion", "WEBHOOK INGESTION", "EVENT_DRIVEN"),
+                 ("twitter", "SOCIAL SIGNAL SIMULATION", "SIMULATED"),
+                 ("police_scanner", "PUBLIC SAFETY SIMULATION", "SIMULATED"),
+                 ("city_sensors", "IOT SENSOR SIMULATION", "SIMULATED")]
+        if os.getenv("DATA_MODE", "hybrid").lower() != "live":
+            for sid, label in [("transit_simulation", "TRANSIT SIMULATION"),
+                               ("planning_traffic_simulation", "PLANNING TRAFFIC SIMULATION"),
+                               ("environment_simulation", "ENVIRONMENT SIMULATION")]:
+                if sid in freshness:
+                    specs.append((sid, label, "SIMULATED"))
+        state["sources"] = [{"id": sid, "label": label, "mode": mode,
+                             "status": freshness.get(sid, {}).get("status", "WAITING"),
+                             "last_ok_at": freshness.get(sid, {}).get("last_update")}
+                            for sid, label, mode in specs]
+        state["sources"].append({"id": "gtfs_transit", "label": "GTFS TRANSIT", "mode": "NOT_CONFIGURED", "status": "NOT_CONFIGURED", "last_ok_at": freshness.get("gtfs_transit_api", {}).get("last_update")})
+        runtime_status = _SOURCE_STATUS_PROVIDER() if _SOURCE_STATUS_PROVIDER else {}
+        for source in state["sources"]:
+            connector_id = {"webhook_ingestion": "webhook_api", "gtfs_transit": "gtfs_transit_api", "twitter": "social_media", "police_scanner": "public_safety", "city_sensors": "iot_sensors"}.get(source["id"], source["id"])
+            connector = runtime_status.get(connector_id)
+            if connector:
+                status_value = connector.get("status", "WAITING").replace(" ", "_")
+                if status_value in {"OFFLINE", "DEGRADED"}:
+                    source["status"] = status_value
+                elif status_value in {"READY", "NOT_CONFIGURED"}:
+                    source["status"] = status_value
+                if source["id"] == "gtfs_transit" and status_value != "NOT_CONFIGURED":
+                    source["mode"] = "LIVE"
+                    source["status"] = status_value
+            elif runtime_status and source["mode"] != "EVENT_DRIVEN":
+                source["status"] = "NOT_CONFIGURED"
+        summaries = state.get("city_summaries", {})
+        state["region"] = {"overall_risk_score": state["overall_risk_score"],
+            "overall_risk_level": state["overall_risk_level"], "risk_trend": state["risk_trend"],
+            "active_events": state["rolling_metrics"]["count_60m"],
+            "active_anomalies": len(state["active_anomalies"]),
+            "cities_online": sum(c["event_count"] > 0 for c in summaries.values()), "cities_total": len(summaries)}
         return state
     except Exception as e:
         logger.error(f"[API] GET /api/state error: {e}")
@@ -235,30 +299,26 @@ async def get_city_history(
     city_state_mgr = get_shared_city_state_manager()
     state = city_state_mgr.get_live_city_state()
 
-    # Generate historical data points matching window
-    now = time.time()
+    # Only measured telemetry; never manufacture historical risk scores.
+    normalized = city_id.replace("_", " ").casefold()
+    city = next((c for c in state.get("city_summaries", {}) if c.casefold() == normalized), None)
+    if city is None:
+        raise HTTPException(status_code=404, detail="Unknown city")
+    windows = {"5m": 5, "15m": 15, "30m": 30, "1h": 60}
+    if window not in windows:
+        raise HTTPException(status_code=400, detail="Unsupported history window")
     points = []
-    num_points = 12
-    step = 300  # 5 minute intervals
-
-    base_score = 30
-    summaries = state.get("city_summaries", {})
-    city_info = next((v for k, v in summaries.items() if k.lower() == city_id.lower() or k.lower().startswith(city_id.lower())), None)
-    if city_info:
-        base_score = city_info.get("risk_score", 30)
-
-    for i in range(num_points, 0, -1):
-        ts = datetime.fromtimestamp(now - i * step, tz=timezone.utc).strftime("%H:%M")
-        val = max(5, min(95, base_score + ((i % 3) * 4 - 4)))
-        points.append({"timestamp": ts, "value": val, "metric": metric})
-
-    return {
-        "city_id": city_id,
-        "metric": metric,
-        "window": window,
-        "data_points": points,
-        "source": "CityStateManager.history"
-    }
+    for event in city_state_mgr.rolling_aggregator.get_events_in_window(windows[window]):
+        data = event.get("data", {})
+        if data.get("city", event.get("location", {}).get("city")) != city:
+            continue
+        point = {"timestamp": event.get("timestamp"), "aqi": data.get("air_quality_index"),
+                 "temperature": data.get("temperature"), "congestion": data.get("congestion_level")}
+        value = point.get(metric)
+        if value is not None:
+            points.append({**point, "value": value, "metric": metric})
+    return {"city_id": city_id, "metric": metric, "window": window, "data_points": points,
+            "history": points, "source": "CityStateManager.recorded_events"}
 
 @app.get("/api/health")
 async def health_check():
@@ -269,10 +329,10 @@ async def health_check():
 
     return {
         "status": "HEALTHY",
-        "pathway_engine": "RUNNING",
+        "pathway_engine": "RECEIVING" if state.get("recent_events") else "WAITING",
         "data_mode": os.getenv("DATA_MODE", "HYBRID").upper(),
         "llm_configured": getattr(rag_sys, "has_valid_key", False),
-        "data_freshness": state.get("data_freshness", {}),
+        "data_freshness": source_freshness_report(state),
         "total_events_ingested": len(state.get("recent_events", []))
     }
 
@@ -314,14 +374,14 @@ async def ingest_webhook_event(request: Request):
     """Receives external incident reports and webhook payloads."""
     try:
         body = await request.json()
-        event_id = ingest_webhook_payload(body)
-        return {"status": "INGESTED", "event_id": event_id, "timestamp": datetime.now(timezone.utc).isoformat()}
+        event = ingest_webhook_payload(body)
+        return {"status": "INGESTED", "event_id": event["data"]["event_id"], "timestamp": datetime.now(timezone.utc).isoformat()}
     except Exception as e:
         logger.error(f"Webhook ingestion error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/api/ask")
-async def ask_copilot(req: AskRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
+def ask_copilot(req: AskRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Grounded RAG query execution against Groq LLM or fallback Copilot."""
     if _AI_QUERY_HANDLER:
         res = _AI_QUERY_HANDLER(req.question)

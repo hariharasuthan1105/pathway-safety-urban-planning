@@ -44,6 +44,15 @@ Thumbs.db
 *.csv
 *.json
 *.db
+*.db-shm
+*.db-wal
+.env.*
+!.env.example
+!frontend/.env.example
+!frontend/.env.production.example
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/tsconfig.json
 data/
 logs/
 frontend/node_modules/

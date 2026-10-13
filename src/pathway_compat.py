@@ -6,12 +6,12 @@ it provides a lightweight pure-Python streaming table fallback so the pipeline, 
 can run, process simulated data, and be fully tested.
 """
 
+import inspect
 import sys
 import time
 import json
 import logging
 import threading
-import inspect
 from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger("pathway_compat")
@@ -86,47 +86,37 @@ except ImportError:
                 raise AttributeError(name)
             return ColumnExpression(name)
 
-        def _invoke_subscriber(self, sub: Callable, row: Dict[str, Any]):
-            """
-            Invokes subscriber callback adhering to Pathway 0.33.0 contract:
-            (key, row, time, is_addition) or (key=..., row=..., time=..., is_addition=...),
-            while maintaining backward compatibility with single-argument callbacks (row).
-            """
-            key = row.get("id") or str(id(row))
-            now_ms = int(time.time() * 1000)
+        @staticmethod
+        def _invoke_subscriber(callback, *, key, row, time, is_addition):
+            signature = inspect.signature(callback)
             try:
-                sig = inspect.signature(sub)
-                params = list(sig.parameters.values())
-                has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
-                param_names = [p.name for p in params]
-                if "key" in param_names or has_var_keyword:
-                    sub(key=key, row=row, time=now_ms, is_addition=True)
-                elif len(params) == 4:
-                    sub(key, row, now_ms, True)
-                elif len(params) == 1:
-                    sub(row)
-                else:
-                    try:
-                        sub(key=key, row=row, time=now_ms, is_addition=True)
-                    except TypeError:
-                        sub(row)
-            except Exception:
+                signature.bind(key=key, row=row, time=time, is_addition=is_addition)
+                style = "keywords"
+            except TypeError:
                 try:
-                    sub(key=key, row=row, time=now_ms, is_addition=True)
+                    signature.bind(key, row, time, is_addition)
+                    style = "positional"
                 except TypeError:
-                    sub(row)
+                    signature.bind(row)
+                    style = "legacy"
+            # Do not catch exceptions raised inside the callback and retry it.
+            if style == "keywords":
+                callback(key=key, row=row, time=time, is_addition=is_addition)
+            elif style == "positional":
+                callback(key, row, time, is_addition)
+            elif is_addition:
+                callback(row)
 
-        def subscribe(self, callback: Callable):
-            """Registers a sink callback that receives streaming events output by this Pathway table."""
-            if callback not in self.subscribers:
-                self.subscribers.append(callback)
+        def subscribe(self, callback):
+            if callback in self.subscribers:
+                return
+            self.subscribers.append(callback)
             for row in list(self._rows):
-                try:
-                    self._invoke_subscriber(callback, row)
-                except Exception as e:
-                    logger.warning(f"Subscriber error on replay: {e}")
+                self._invoke_subscriber(callback, key=row.get("id", id(row)), row=row,
+                                        time=int(time.time()*1000000), is_addition=True)
 
-        def publish(self, row: Dict[str, Any]):
+        def publish(self, row: Dict[str, Any], *, key=None, event_time=None, is_addition=True):
+            event_time = event_time if event_time is not None else int(time.time() * 1000000)
             """Processes an incoming row through this Table's transforms, stores it, and notifies children & subscribers."""
             processed_row = row
             if self.transform_fn:
@@ -143,18 +133,24 @@ except ImportError:
                 except Exception:
                     return
 
-            self._rows.append(processed_row)
+            if is_addition:
+                self._rows.append(processed_row)
+                # Compatibility snapshots are bounded; the runtime state owns history.
+                if len(self._rows) > 5000:
+                    del self._rows[:len(self._rows) - 5000]
+            elif processed_row in self._rows:
+                self._rows.remove(processed_row)
 
             # Notify direct sink subscribers
             for sub in list(self.subscribers):
                 try:
-                    self._invoke_subscriber(sub, processed_row)
+                    self._invoke_subscriber(sub, key=key if key is not None else row.get("id", id(row)), row=processed_row, time=event_time, is_addition=is_addition)
                 except Exception as e:
-                    logger.warning(f"Error in Pathway sink subscriber: {e}")
+                    raise
 
             # Forward to child tables in the DAG
             for child in list(self.children):
-                child.publish(processed_row)
+                child.publish(processed_row, key=key, event_time=event_time, is_addition=is_addition)
 
         def select(self, *args, **kwargs) -> 'Table':
             child = Table(schema=self.schema)
@@ -288,8 +284,8 @@ except ImportError:
         jsonlines = JSONIO()
 
         @staticmethod
-        def subscribe(table: Table, callback: Callable):
-            table.subscribe(callback)
+        def subscribe(table: Table, on_change: Callable):
+            table.subscribe(on_change)
 
     def sleep(seconds: float):
         time.sleep(seconds)

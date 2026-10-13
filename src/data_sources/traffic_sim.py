@@ -112,7 +112,7 @@ class TrafficSimulationSource(DataSource):
         self.last_updated = "N/A"
 
         # Seed setup for deterministic tests if specified
-        seed_val = self.config.get('traffic_sim_seed')
+        seed_val = self.config.get('traffic_sim_seed', __import__('os').getenv('TRAFFIC_SIM_SEED'))
         self.rng = random.Random(seed_val) if seed_val is not None else random.Random()
 
         # Internal state tracking per city road segment for smooth realistic transitions

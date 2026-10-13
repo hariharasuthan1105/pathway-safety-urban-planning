@@ -40,8 +40,8 @@ def test_zone_assignment():
     zm = ZoneManager()
     event_no_coords = {"source": "webhook", "data": {"severity": "HIGH"}}
     assigned = zm.assign_zone(event_no_coords)
-    assert assigned == "Zone A (Downtown)"
-    assert event_no_coords["location"]["zone"] == "Zone A (Downtown)"
+    assert assigned == "Unlocated"
+    assert event_no_coords["location"]["zone"] == "Unlocated"
 
 def test_rolling_window_aggregator():
     agg = RollingWindowAggregator(max_history_minutes=60)

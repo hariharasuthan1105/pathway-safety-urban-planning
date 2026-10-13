@@ -28,7 +28,7 @@ except ImportError:
 
 from src.data_sources import DataSourceManager
 from src.processing import AnomalyDetector, RAGSystem, CityStateManager, get_shared_city_state_manager, get_shared_rag_system, ingest_runtime_event
-from src.webhook_server import start_webhook_server, register_ai_query_handler
+from src.webhook_server import start_webhook_server, register_ai_query_handler, register_source_status_provider
 
 def combine_pathway_streams(streams: list) -> pw.Table:
     """
@@ -61,39 +61,8 @@ def combine_pathway_streams(streams: list) -> pw.Table:
 
     return pw.Table.concat(*streams)
 
-def make_pathway_sink(config: dict):
-    """
-    Factory creating the Pathway streaming sink callback for pw.io.subscribe.
-    Accepts native Pathway 0.33.0 keyword/positional arguments:
-    (key, row, time, is_addition) or kwargs, while preserving backwards compatibility
-    with single-argument (row) invocations.
-    """
-    def pathway_sink(key=None, row=None, time=None, is_addition=True, *args, **kwargs):
-        # Resolve row whether passed as keyword, 4 positionals (key, row, time, is_addition), or 1 positional (row)
-        if row is None and isinstance(key, dict):
-            event_row = key
-        elif row is not None:
-            event_row = row
-        else:
-            event_row = kwargs.get("row", key)
-
-        if not is_addition:
-            # Pathway emits deletions with is_addition=False; only process additions
-            return
-
-        if not isinstance(event_row, dict) and hasattr(event_row, "items"):
-            try:
-                event_row = dict(event_row)
-            except Exception:
-                pass
-
-        if isinstance(event_row, dict):
-            ingest_runtime_event(event_row, config)
-            logger.info(f"[Pathway Stream Sink] Event processed from source: {event_row.get('source', 'unknown')}")
-
-    return pathway_sink
-
 def load_config(config_path: str) -> dict:
+
     path = Path(config_path)
     if not path.exists():
         example_path = Path(f"{config_path}.example")
@@ -112,6 +81,29 @@ def load_config(config_path: str) -> dict:
         config['llm']['api_key'] = groq_key
 
     return config
+
+def create_pathway_sink(config):
+    """Native subscription contract. Retractions are not new incident reports."""
+    def pathway_sink(key=None, row=None, time=None, is_addition=True, **kwargs):
+        if row is None and isinstance(key, dict):
+            row = key
+        if not isinstance(row, dict):
+            return
+        if not is_addition:
+            return
+        # Native Json values wrap Python objects; shared state consumes plain dicts.
+        event = {name: value.as_dict() if hasattr(value, "as_dict") else value
+                 for name, value in row.items()}
+        ingest_runtime_event(event, config)
+        logger.info("[Pathway Stream Sink] Event processed from source: %s", event.get("source", "unknown"))
+    return pathway_sink
+
+make_pathway_sink = create_pathway_sink  # Preserve the existing repository API.
+
+@pw.udf
+def anomaly_flag(data: pw.Json) -> bool:
+    value = data.as_dict() if hasattr(data, "as_dict") else data
+    return bool(value.get("anomaly", False))
 
 def main():
     logger.info("Application starting (Phase 3 Real-Time Telemetry & Webhook Ingestion)...")
@@ -153,6 +145,7 @@ def main():
     # Initialize data sources
     logger.info("Initializing data sources...")
     data_manager = DataSourceManager(config)
+    register_source_status_provider(data_manager.get_connector_status)
     data_streams = data_manager.get_streams()
     connector_status = data_manager.get_connector_status()
     config['connector_status'] = connector_status
@@ -192,26 +185,13 @@ def main():
         location=combined_table.location
     )
     
-    # Filter anomalies
-    anomalies_table = processed_table.filter(
-        pw.this.data.get("anomaly", False)
-    )
-    
-    # Output results
+    # Register every output before the blocking native execution starts.
+    pw.io.subscribe(processed_table, on_change=create_pathway_sink(config))
+    anomalies_table = processed_table.filter(anomaly_flag(processed_table.data))
     pw.io.csv.write(anomalies_table, "anomalies.csv")
-    pw.io.json.write(processed_table, "processed_data.json")
-
-    # Ingest processed rows from Pathway table sink into RAG System & City State Manager
-    pathway_sink = make_pathway_sink(config)
-
-    if hasattr(pw.io, "subscribe"):
-        pw.io.subscribe(processed_table, pathway_sink)
-    elif hasattr(processed_table, "subscribe"):
-        processed_table.subscribe(pathway_sink)
-
-    # Start Pathway streaming execution
+    pw.io.jsonlines.write(processed_table, "processed_data.jsonl")
     pw.run()
-    
+
     # Start dashboard (if Streamlit is available) and keep backend streaming engine active
     logger.info(f"Backend API server active on http://{args.host}:{webhook_port}")
     try:

@@ -1,184 +1,24 @@
-import React from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, Activity, Cpu, ArrowRight, Zap, Globe, Building2 } from 'lucide-react';
-import { Button } from '../components/ui/Button';
-
-export const Landing: React.FC = () => {
-  return (
-    <div className="min-h-screen bg-[#070B14] text-slate-100 font-sans selection:bg-blue-500/30">
-      {/* Navigation Bar */}
-      <header className="sticky top-0 z-50 glass-nav h-20 px-6 md:px-12 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <span className="font-bold text-lg tracking-tight text-white block">URBAN INTELLIGENCE</span>
-            <span className="text-[11px] font-semibold tracking-widest text-blue-400 uppercase block -mt-1">South India Platform</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <Link to="/login">
-            <Button variant="ghost" size="sm">Sign In</Button>
-          </Link>
-          <Link to="/signup">
-            <Button variant="primary" size="sm">Explore Platform</Button>
-          </Link>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="relative px-6 md:px-12 py-20 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        <div className="space-y-6">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-semibold tracking-wider uppercase">
-            <span>SOUTH INDIA COVERAGE</span>
-          </div>
-
-          <h1 className="text-4xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.1]">
-            Urban Intelligence for South India
-          </h1>
-
-          <p className="text-slate-400 text-base md:text-lg leading-relaxed max-w-xl">
-            Real-time urban intelligence for safer, smarter and more resilient cities.
-          </p>
-
-          <div className="flex flex-wrap items-center gap-4 pt-2">
-            <Link to="/signup">
-              <Button variant="primary" size="lg">
-                <span>Access Command Center</span>
-                <ArrowRight className="w-4 h-4" />
-              </Button>
-            </Link>
-            <Link to="/login">
-              <Button variant="outline" size="lg">
-                <span>Sign In as Operator</span>
-              </Button>
-            </Link>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2 max-w-xl">
-            <div className="flex items-center justify-between text-xs font-bold text-white">
-              <span className="flex items-center gap-1.5 text-blue-400">
-                <Building2 className="w-4 h-4" /> 20 Cities
-              </span>
-              <span className="text-slate-400 font-medium">Tamil Nadu • Kerala • Andhra Pradesh</span>
-            </div>
-            <p className="text-xs text-slate-400">
-              Currently operating across 20 cities in South India.
-            </p>
-          </div>
-        </div>
-
-        {/* Decorative Visual Card */}
-        <div className="relative rounded-3xl glass-surface p-8 border border-slate-800 space-y-6 shadow-2xl">
-          <div className="flex items-center justify-between border-b border-slate-800/80 pb-4">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-500 animate-ping" />
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Regional Deployment</span>
-            </div>
-            <span className="text-xs text-blue-400 font-mono">TN • KL • AP</span>
-          </div>
-
-          <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Globe className="w-5 h-5 text-blue-400" />
-                <span className="text-sm font-semibold text-white">Open-Meteo REST Stream</span>
-              </div>
-              <span className="text-xs text-emerald-400 font-mono">LIVE TELEMETRY</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Activity className="w-5 h-5 text-purple-400" />
-                <span className="text-sm font-semibold text-white">Traffic Simulation Engine</span>
-              </div>
-              <span className="text-xs text-purple-400 font-mono">SIMULATED STREAM</span>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Cpu className="w-5 h-5 text-indigo-400" />
-                <span className="text-sm font-semibold text-white">Grounded RAG + Groq</span>
-              </div>
-              <span className="text-xs text-indigo-400 font-mono">DECISION SUPPORT</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Capability Trio Section */}
-      <section className="px-6 md:px-12 py-16 bg-slate-950/40 border-t border-b border-slate-800/80">
-        <div className="max-w-7xl mx-auto space-y-12">
-          <div className="text-center max-w-2xl mx-auto space-y-3">
-            <h2 className="text-2xl md:text-3xl font-extrabold text-white">Built for High-Stakes Control Rooms</h2>
-            <p className="text-sm text-slate-400">
-              Designed for a 2 a.m. control-room operator and a director reading on a mobile device.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-2xl glass-surface space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                <Globe className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">1. Monitor</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Continuous real-time telemetry across weather, air quality, traffic simulation, and external incident webhooks.
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl glass-surface space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                <Zap className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">2. Understand</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Pathway streaming engine evaluates rolling window rates, spatial risk scores, and cross-source correlations.
-              </p>
-            </div>
-
-            <div className="p-6 rounded-2xl glass-surface space-y-4">
-              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                <Cpu className="w-6 h-6" />
-              </div>
-              <h3 className="text-lg font-bold text-white">3. Ask</h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Query the AI Urban Copilot for grounded assessment, evidence citations, and human-in-the-loop review criteria.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Data Honesty Section */}
-      <section className="px-6 md:px-12 py-16 max-w-7xl mx-auto space-y-8">
-        <div className="text-center space-y-2">
-          <h2 className="text-2xl font-bold text-white">Data Honesty Architecture</h2>
-          <p className="text-xs text-slate-400">Clear provenance envelopes for every metric displayed in the system.</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
-            <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider">LIVE TELEMETRY</span>
-            <h4 className="text-sm font-bold text-white">Open-Meteo REST API</h4>
-            <p className="text-xs text-slate-400">Live weather and air quality REST telemetry polled for all 20 cities.</p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
-            <span className="text-xs font-bold text-purple-400 uppercase tracking-wider">SIMULATED STREAM</span>
-            <h4 className="text-sm font-bold text-white">Traffic Simulation Engine</h4>
-            <p className="text-xs text-slate-400">Backend traffic stream with IST peak curves and Open-Meteo weather coupling.</p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-2">
-            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">EVENT-DRIVEN</span>
-            <h4 className="text-sm font-bold text-white">Webhook Ingestion</h4>
-            <p className="text-xs text-slate-400">External HTTP webhook incident reports entering Pathway streaming pipeline.</p>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-};
+import { ArrowUpRight, ArrowRight, Crosshair, Layers, Radio, Wind, ScanLine, Bot, ChevronDown } from 'lucide-react';
+import { Brand, Connection } from '../components/ui/Workstation';
+const CityScene=lazy(()=>import('../features/three/CityScene'));
+const capabilities=[
+  {id:'01',icon:Layers,title:'One region. Every signal.',tag:'CITY INTELLIGENCE',text:'Explore 20 cities across Tamil Nadu, Kerala and Andhra Pradesh. A coordinated spatial workspace connects each city to its available telemetry.',detail:'20 CITIES / 03 STATES',className:'coverage'},
+  {id:'02',icon:Crosshair,title:'Risk, with a reason.',tag:'SPATIAL RISK INTELLIGENCE',text:'Trace regional and city risk back to recent events, anomaly flags and contributing factors. Select an exact city and move from overview to investigation.',detail:'EXPLAINABLE / EVIDENCE-LED',className:'risk'},
+  {id:'03',icon:Radio,title:'Understand the flow.',tag:'TRAFFIC & TELEMETRY',text:'Inspect the backend traffic simulation stream, congestion, vehicle counts and available speed readings. Every simulated source stays clearly identified.',detail:'TRAFFIC SIMULATION STREAM',className:'traffic'},
+  {id:'04',icon:Wind,title:'Read the atmosphere.',tag:'ENVIRONMENTAL INTELLIGENCE',text:'Weather and air-quality connectors bring available Open-Meteo observations into view, with measurement units, observation times and source health.',detail:'REAL PROVIDERS / AVAILABILITY SHOWN',className:'environment'},
+  {id:'05',icon:ScanLine,title:'From signal to incident.',tag:'INCIDENT INVESTIGATION',text:'Follow timestamped event records, inspect their source payload and locate incidents using the coordinates supplied by the backend.',detail:'EVENT-DRIVEN / GEOGRAPHIC CONTEXT',className:'incident'},
+  {id:'06',icon:Bot,title:'Ask better questions.',tag:'AI URBAN COPILOT',text:'Investigate available city state through Groq-powered grounded retrieval. Review the evidence, recommendations and uncertainty, with deterministic fallback when Groq is unavailable.',detail:'GROQ / GROUNDED RETRIEVAL',className:'copilot'}
+];
+export function Landing(){const container=useRef<HTMLDivElement>(null);
+  useEffect(()=>{const observer=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('revealed');observer.unobserve(e.target);}}),{threshold:.08});container.current?.querySelectorAll('[data-reveal]').forEach(el=>observer.observe(el));return()=>observer.disconnect();},[]);
+  return <div className="landing" ref={container}>
+    <nav className="landing-nav"><Brand/><div className="landing-links"><a href="#intelligence">Intelligence</a><a href="#architecture">Architecture</a><Connection/></div><div className="nav-actions"><Link to="/login" className="text-link">Sign in</Link><Link to="/app/overview" className="button primary small">Open Command Center <ArrowUpRight size={15}/></Link></div></nav>
+    <main><section className="hero"><div className="hero-copy"><span className="eyebrow"><i className="tiny-cross"/> SOUTH INDIA / SPATIAL INTELLIGENCE</span><h1>SEE THE CITY.<br/><span className="pixel-accent">BEYOND</span><br/>THE SURFACE<span className="cyan">.</span></h1><p>Real-time intelligence for a changing city.</p><p className="hero-description">Transform urban telemetry into spatial intelligence, explainable risk insights and actionable city operations.</p><div className="hero-actions"><Link className="button primary" to="/app/overview">Open Command Center <ArrowUpRight size={18}/></Link><a className="button secondary" href="#intelligence">Explore the platform <ChevronDown size={16}/></a></div><div className="hero-foot"><span>20 <small>CITIES COVERED</small></span><span>03 <small>SOUTH INDIAN STATES</small></span><span className="technical">TN / KL / AP<br/><small>CONNECTED BY CONTEXT</small></span></div></div><div className="hero-visual"><div className="scene-kicker"><span className="technical">UI—SPATIAL ENGINE</span><span className="eyebrow">MODEL 001</span></div><Suspense fallback={<div className="scene-fallback">Loading spatial engine…</div>}><CityScene/></Suspense><div className="visual-bottom"><span><i/> INTERACTIVE PROCEDURAL CITY</span><span>PRECISION IN PERSPECTIVE ↗</span></div></div></section>
+    <div className="signal-strip"><span>BUILT TO CONNECT THE DOTS</span><b>PATHWAY</b><i>+</i><b>GEOSPATIAL ANALYTICS</b><i>+</i><b>GROQ AI</b><span>HUMAN DECISIONS AT THE CENTER</span></div>
+    <section className="capabilities" id="intelligence"><header className="section-intro" data-reveal><span className="eyebrow">01 / THE INTELLIGENCE LAYER</span><h2>A city never stops.<br/><span>Neither should your perspective.</span></h2><p>Separate streams. Shared context. A clearer view of what needs your attention.</p></header><div className="capability-grid">{capabilities.map(({id,icon:Icon,title,tag,text,detail,className})=><article className={`capability ${className}`} key={id} data-reveal><header><Icon size={23}/><span className="technical">/{id}</span></header><span className="eyebrow">{tag}</span><h3>{title}</h3><p>{text}</p><footer className="technical">{detail}<ArrowUpRight size={17}/></footer></article>)}</div></section>
+    <section className="architecture" id="architecture" data-reveal><div><span className="eyebrow">02 / SYSTEM ARCHITECTURE</span><h2>Signals in.<br/><span className="pixel-accent">Clarity out.</span></h2><p>An inspectable path from available telemetry to operator decision support.</p><Link to="/app/copilot" className="text-link">Investigate with Copilot <ArrowRight size={16}/></Link></div><ol className="flow">{['Data sources','Pathway stream processing','Anomaly detection','City state & risk intelligence','Grounded retrieval','Groq AI / deterministic fallback','Operator decision support'].map((step,i)=><li key={step}><span className="technical">0{i+1}</span><strong>{step}</strong><span className="flow-node"/></li>)}</ol></section>
+    <section className="final-cta" data-reveal><span className="eyebrow">YOUR NEXT PERSPECTIVE</span><h2>See more. Understand why.<br/><span className="pixel-accent">Act with context.</span></h2><Link className="button primary" to="/app/overview">Enter the command center <ArrowUpRight size={19}/></Link><p>Real providers. Labelled simulations. Evidence before action.</p></section></main><footer className="landing-footer"><Brand/><span>Real-time intelligence for a changing city.</span><span className="technical">SOUTH INDIA / TN · KL · AP</span></footer>
+  </div>;
+}

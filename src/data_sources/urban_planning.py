@@ -1,64 +1,39 @@
+"""Clearly labelled local generators for the optional urban-planning mode."""
 import datetime
 import random
 import time
-import logging
-
-try:
-    import pathway as pw
-except ImportError:
-    from ..pathway_compat import pw
-
-from .base import DataSource, GeneratorConnectorSubject
+import uuid
+from .base import DataSource
 from .public_safety import EventSchema
+from .real_sources import SOUTH_INDIA_CITIES
 
-logger = logging.getLogger(__name__)
-
-class TransitSource(DataSource):
-    name = "transit"
-
+class UrbanSimulationSource(DataSource):
+    status = "SIMULATED"
     def _define_schema(self):
         return EventSchema
-    
-    def get_stream(self):
-        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
-        return pw.io.python.read(subject, schema=self.schema)
 
-class TrafficSource(DataSource):
-    name = "traffic"
-
-    def _define_schema(self):
-        return EventSchema
-    
-    def get_stream(self):
-        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
-        return pw.io.python.read(subject, schema=self.schema)
-
-class EnvironmentSource(DataSource):
-    name = "environment"
-
-    def _define_schema(self):
-        return EventSchema
-    
-    def get_stream(self):
-        subject = GeneratorConnectorSubject(self._stream, source_instance=self)
-        return pw.io.python.read(subject, schema=self.schema)
-
-    
     def _stream(self):
         while True:
-            env_data = {
-                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-                "source": "environment_api",
-                "data": {
-                    "air_quality_index": round(random.uniform(20, 150), 1),
-                    "noise_level": round(random.uniform(40, 80), 1),
-                    "temperature": round(random.uniform(15, 30), 1)
-                },
-                "location": {
-                    "lat": round(random.uniform(40.7, 40.8), 4),
-                    "lon": round(random.uniform(-74.0, -73.9), 4)
-                }
-            }
-            yield env_data
+            city = random.choice(SOUTH_INDIA_CITIES)
+            now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+            self.last_updated = now
+            yield {"timestamp": now, "source": self.name,
+                   "data": {"event_id": uuid.uuid4().hex, "city": city["city"],
+                            "state": city["state"], "mode": "SIMULATED", **self.reading()},
+                   "location": {"lat": city["lat"], "lon": city["lon"]}}
             time.sleep(5)
 
+class TransitSource(UrbanSimulationSource):
+    name = "transit_simulation"
+    def reading(self):
+        return {"event_type": "transit_simulation", "delay_minutes": random.randint(0, 20)}
+
+class TrafficSource(UrbanSimulationSource):
+    name = "planning_traffic_simulation"
+    def reading(self):
+        return {"event_type": "planning_traffic_simulation", "traffic_flow": random.randint(10, 80)}
+
+class EnvironmentSource(UrbanSimulationSource):
+    name = "environment_simulation"
+    def reading(self):
+        return {"event_type": "environment_simulation", "noise_level": round(random.uniform(40, 80), 1)}

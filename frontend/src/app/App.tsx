@@ -13,6 +13,7 @@ import { Risk } from '../pages/Risk';
 import { Environment } from '../pages/Environment';
 import { Events } from '../pages/Events';
 import { Copilot } from '../pages/Copilot';
+import { DigitalTwin } from '../pages/DigitalTwin';
 import { Settings } from '../pages/Settings';
 
 export const App: React.FC = () => {
@@ -36,6 +37,7 @@ export const App: React.FC = () => {
           >
             <Route index element={<Navigate to="/app/overview" replace />} />
             <Route path="overview" element={<Overview />} />
+            <Route path="digital-twin" element={<DigitalTwin />} />
             <Route path="cities" element={<Cities />} />
             <Route path="traffic" element={<Traffic />} />
             <Route path="risk" element={<Risk />} />

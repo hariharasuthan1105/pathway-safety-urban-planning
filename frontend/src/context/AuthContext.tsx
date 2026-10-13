@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { User, AuthState } from '../types';
 import { fetchApi } from '../lib/api';
 
@@ -15,10 +15,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [authenticated, setAuthenticated] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const revision = useRef(0);
 
   const refreshUser = useCallback(async () => {
+    const requestRevision = ++revision.current;
     try {
       const data = await fetchApi<{ authenticated: boolean; user: User }>('/api/auth/me', { retries: 0 });
+      if (requestRevision !== revision.current) return;
       if (data.authenticated && data.user) {
         setUser(data.user);
         setAuthenticated(true);
@@ -27,10 +30,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setAuthenticated(false);
       }
     } catch {
+      if (requestRevision !== revision.current) return;
       setUser(null);
       setAuthenticated(false);
     } finally {
-      setLoading(false);
+      if (requestRevision === revision.current) setLoading(false);
     }
   }, []);
 
@@ -38,6 +42,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
 
     const handleAuthExpired = () => {
+      revision.current++;
+      setLoading(false);
       setUser(null);
       setAuthenticated(false);
     };
@@ -47,24 +53,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [refreshUser]);
 
   const login = async (email: string, password: string, remember: boolean = false) => {
+    revision.current++;
+    setLoading(false);
     const data = await fetchApi<{ user: User }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password, remember }),
     });
     setUser(data.user);
     setAuthenticated(true);
+    setLoading(false);
   };
 
   const signup = async (full_name: string, email: string, password: string) => {
+    revision.current++;
+    setLoading(false);
     const data = await fetchApi<{ user: User }>('/api/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ full_name, email, password }),
     });
     setUser(data.user);
     setAuthenticated(true);
+    setLoading(false);
   };
 
   const logout = async () => {
+    revision.current++;
     try {
       await fetchApi('/api/auth/logout', { method: 'POST' });
     } catch {

@@ -34,17 +34,23 @@ class ZoneManager:
 
     def assign_zone(self, event: Dict[str, Any]) -> str:
         if "location" not in event or not isinstance(event.get("location"), dict):
-            event["location"] = {"lat": 40.7128, "lon": -74.0060}
+            event["location"] = {}
         
         location = event["location"]
-        lat = location.get("lat", 40.7128)
-        lon = location.get("lon", -74.0060)
+        lat = location.get("lat")
+        lon = location.get("lon")
+        if lat is None or lon is None:
+            location["zone"] = "Unlocated"
+            return "Unlocated"
         
         # If zone already set explicitly, preserve it
         if "zone" in location and location["zone"] and location["zone"] != "city_center":
             return location["zone"]
         
-        zone_name = get_zone_name(lat, lon, self.zones_config)
+        # Explicit source city labels form city-level groups, not surveyed wards.
+        data = event.get("data", {})
+        city = location.get("city") or (data.get("city") if isinstance(data, dict) else None)
+        zone_name = f"{city} (source city)" if city and "zones" not in self.config else get_zone_name(lat, lon, self.zones_config)
         location["zone"] = zone_name
         return zone_name
 
