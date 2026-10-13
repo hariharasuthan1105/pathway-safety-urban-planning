@@ -37,14 +37,37 @@ function Camera({ focus, reset }: {
 }) {
     const { camera, gl, invalidate } = useThree();
     const controls = useRef<OrbitControls | null>(null);
-    useEffect(() => { const c = new OrbitControls(camera, gl.domElement); const changed = () => invalidate(); c.enableDamping = true; c.dampingFactor = .09; c.minDistance = 12; c.maxDistance = 300; c.maxPolarAngle = Math.PI * .47; c.minPolarAngle = .17; c.target.set(0, 0, -3); c.addEventListener('change', changed); controls.current = c; return () => { c.removeEventListener('change', changed); c.dispose(); controls.current = null; }; }, [camera, gl, invalidate]);
+    useEffect(() => {
+        const c = new OrbitControls(camera, gl.domElement);
+        const changed = () => invalidate();
+        c.enableDamping = true;
+        c.dampingFactor = .09;
+        c.minDistance = 12;
+        c.maxDistance = 300;
+        c.maxPolarAngle = Math.PI * .47;
+        c.minPolarAngle = .17;
+        c.target.set(0, 0, -3);
+        c.addEventListener('change', changed);
+        const onWheel = () => {
+            c.update();
+            invalidate();
+        };
+        gl.domElement.addEventListener('wheel', onWheel, { passive: true });
+        controls.current = c;
+        return () => {
+            gl.domElement.removeEventListener('wheel', onWheel);
+            c.removeEventListener('change', changed);
+            c.dispose();
+            controls.current = null;
+        };
+    }, [camera, gl, invalidate]);
     useEffect(() => { const p = focus?.p ?? [0, 0, -3]; const d = focus ? Math.max(18, focus.size * 1.6) : 155; camera.position.set(p[0] + d * .7, p[1] + d * .7, p[2] + d); controls.current?.target.set(p[0], p[1], p[2]); controls.current?.update(); invalidate(); }, [focus, reset, camera, invalidate]);
     useFrame(() => { const c = controls.current; if (c) {
         c.target.x = THREE.MathUtils.clamp(c.target.x, -85, 85);
         c.target.z = THREE.MathUtils.clamp(c.target.z, -75, 78);
         c.target.y = THREE.MathUtils.clamp(c.target.y, 0, 45);
         camera.position.y = Math.max(2, camera.position.y);
-        c.update();
+        if (c.update()) invalidate();
     } });
     return null;
 }
