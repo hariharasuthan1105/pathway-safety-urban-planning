@@ -86,26 +86,18 @@ class GroqProvider(BaseLLMProvider):
 
         try:
             parsed = json.loads(cleaned)
-            if isinstance(parsed, dict):
-                return {
-                    "answer": parsed.get("answer", raw_text),
-                    "risk_level": parsed.get("risk_level", "MODERATE"),
-                    "confidence": parsed.get("confidence", "HIGH"),
-                    "affected_zones": parsed.get("affected_zones", []),
-                    "key_factors": parsed.get("key_factors", []),
-                    "evidence": parsed.get("evidence", [])
-                }
-        except Exception:
-            logger.warning("[GroqProvider] Failed to parse JSON response. Falling back to plain text answer.")
-
-        return {
-            "answer": raw_text,
-            "risk_level": "MODERATE",
-            "confidence": "MEDIUM",
-            "affected_zones": [],
-            "key_factors": [],
-            "evidence": []
-        }
+            if not isinstance(parsed, dict) or not isinstance(parsed.get("answer"), str) or not parsed["answer"].strip():
+                raise ValueError("Missing structured answer")
+            if parsed.get("risk_level") not in {"UNKNOWN", "LOW", "MODERATE", "HIGH", "CRITICAL"}:
+                raise ValueError("Invalid risk level")
+            if parsed.get("confidence") not in {"NONE", "LOW", "MEDIUM", "HIGH"}:
+                raise ValueError("Invalid confidence")
+            if any(not isinstance(parsed.get(key, []), list) for key in ("affected_zones", "key_factors", "evidence")):
+                raise ValueError("Invalid structured lists")
+            return {key: parsed.get(key, []) for key in ("answer", "risk_level", "confidence", "affected_zones", "key_factors", "evidence")}
+        except (ValueError, TypeError):
+            logger.warning("[GroqProvider] Invalid structured response; using deterministic fallback")
+            return {"error": "MALFORMED_RESPONSE", "answer": "Groq unavailable; deterministic fallback required."}
 
 # Legacy OpenAIProvider class aliased for backwards compatibility
 class OpenAIProvider(GroqProvider):

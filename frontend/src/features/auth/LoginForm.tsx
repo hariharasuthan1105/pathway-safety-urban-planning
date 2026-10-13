@@ -11,7 +11,6 @@ export const LoginForm: React.FC = () => {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(
@@ -24,7 +23,7 @@ export const LoginForm: React.FC = () => {
     setLoading(true);
 
     try {
-      await login(email, password, remember);
+      await login(email, password);
       const nextUrl = searchParams.get('next') || '/app/overview';
       navigate(nextUrl);
     } catch (err: any) {
@@ -84,17 +83,7 @@ export const LoginForm: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-slate-400">
-        <label className="flex items-center gap-2 cursor-pointer select-none">
-          <input
-            type="checkbox"
-            checked={remember}
-            onChange={(e) => setRemember(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-800 bg-slate-900 text-blue-600 focus:ring-blue-500"
-          />
-          <span>Remember session for 30 days</span>
-        </label>
-      </div>
+      <p className="text-xs text-slate-400">Operator sessions expire after 15 minutes. If your browser blocks session cookies, sign in again after reloading.</p>
 
       <Button type="submit" variant="primary" size="lg" className="w-full" isLoading={loading}>
         <Shield className="w-4 h-4" />

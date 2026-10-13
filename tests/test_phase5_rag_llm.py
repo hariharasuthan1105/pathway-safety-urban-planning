@@ -123,8 +123,8 @@ def test_groq_provider_fallback_parsing():
     # Raw non-JSON text fallback
     raw_text = "The city is operating normally with no active incidents."
     parsed = provider._parse_json_response(raw_text)
-    assert parsed["answer"] == raw_text
-    assert parsed["confidence"] in ["MEDIUM", "HIGH"]
+    assert parsed["error"] == "MALFORMED_RESPONSE"
+    assert raw_text not in parsed["answer"]
 
     # Markdown json block parsing
     markdown_json = '```json\n{"answer": "High traffic detected.", "risk_level": "HIGH", "confidence": "HIGH", "affected_zones": ["Zone B"], "key_factors": ["Congestion"], "evidence": []}\n```'

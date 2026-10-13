@@ -30,7 +30,7 @@ INFERRED from inspected source:
 |---|---|
 | root index.html, script.js, style.css | Already deleted on main in PR #3. Historical docs still mention them; no new deletion needed. |
 | components/{ai-assistant-dashboard,dashboard-content,dashboard-header,dashboard-sidebar}.tsx | Already deleted in PR #3. |
-| frontend/src/App.tsx, App.css, assets/{hero.png,react.svg,vite.svg} | Vite starter only. main.tsx imports app/App. Search all source/workflows/tests before removal; retain until checked. |
+| frontend/src/App.tsx, App.css, assets/{hero.png,react.svg,vite.svg} | Vite starter only. main.tsx imports app/App. VERIFIED rg across source, workflows, tests and docs: only starter self-imports and historical docs. Removed these five files; active main imports app/App. |
 
 VERIFIED tooling: local Node v24.19.0, Python 3.12.14, gh available.
 UNVERIFIED locally: Node 22, native Linux Pathway; WSL reports missing runtime,

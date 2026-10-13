@@ -1,4 +1,5 @@
 import {test, expect} from '@playwright/test';
+import {useLocalApi} from './local-api';
 
 test('compiled Pages artifact mounts voxel city and preserves hash routes on reload', async ({page}) => {
   test.setTimeout(90000);
@@ -6,6 +7,7 @@ test('compiled Pages artifact mounts voxel city and preserves hash routes on rel
   page.on('pageerror', e=>errors.push(e.message));
   page.on('request', r=>{if(r.url().includes('/api/'))apiRequests.push(r.url());});
   page.on('response', r=>{if(r.status()>=400 && /\.(js|css|svg|woff2?)(\?|$)/.test(r.url()))failures.push(r.url());});
+  const apiOrigin=await useLocalApi(page);
   await page.goto('/pathway-safety-urban-planning/');
   await expect(page.locator('.voxel-scene canvas')).toBeVisible();
   await expect(page.locator('.scene-loading')).toHaveCount(0);
@@ -26,12 +28,23 @@ test('compiled Pages artifact mounts voxel city and preserves hash routes on rel
   await page.getByLabel('Explore district').selectOption({label:'Grand Central terminus'});
   await page.getByLabel('Focus selected entity').click();
   await expect(page.locator('.voxel-selection')).toContainText('Six platforms');
-  await page.reload();
-  await expect(page).toHaveURL(/#\/app\/digital-twin/);
-  await expect(page.locator('.voxel-scene canvas')).toBeVisible();
-  await expect(page.locator('.scene-loading')).toHaveCount(0);
+  await page.getByLabel('Pause camera motion').click();
+  const canvas=page.locator('.voxel-scene canvas'), box=(await canvas.boundingBox())!;
+  let before=await canvas.screenshot();
+  await page.mouse.move(box.x+box.width*.5,box.y+box.height*.6);
+  await page.mouse.down({button:'right'});
+  await page.mouse.move(box.x+box.width*.6,box.y+box.height*.65,{steps:10});
+  await page.mouse.up({button:'right'});
+  expect((await canvas.screenshot()).equals(before)).toBeFalsy();
+  before=await canvas.screenshot(); await page.mouse.wheel(0,200);
+  await expect.poll(async()=>!(await canvas.screenshot()).equals(before)).toBeTruthy();
+  await page.getByLabel('Reset camera').click();
   await page.screenshot({path:'../../../outputs/pages-voxel-verified.png',fullPage:false});
+  await page.goto('/pathway-safety-urban-planning/#/login');
+  await page.reload();
+  await expect(page).toHaveURL(/#\/login/);
+  await expect(page.locator('button[type=submit]')).toBeVisible();
   expect(apiRequests.length).toBeGreaterThan(0);
-  expect(apiRequests.every(url=>url.startsWith('http://127.0.0.1:10000/api/'))).toBeTruthy();
+  expect(apiRequests.every(url=>url.startsWith(`${apiOrigin}/api/`))).toBeTruthy();
   expect(failures).toEqual([]);expect(errors).toEqual([]);
 });

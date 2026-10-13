@@ -6,6 +6,7 @@ and HTTP Webhook event stream ingestion.
 """
 
 import os
+from ..source_config import valid_feed_url
 import time
 import datetime
 import logging
@@ -194,10 +195,10 @@ class WeatherSource(DataSource):
                         logger.warning(f"[Weather API] HTTP error: {response.status_code}")
                 except requests.RequestException as e:
                     self.status = "OFFLINE"
-                    logger.error(f"[Weather API] Connection failed: {e}")
+                    logger.error(f"[Weather API] Connection failed: {type(e).__name__}")
                 except Exception as e:
                     self.status = "DEGRADED"
-                    logger.error(f"[Weather API] Unexpected parsing error: {e}")
+                    logger.error(f"[Weather API] Unexpected parsing error: {type(e).__name__}")
 
             time.sleep(self.poll_interval)
 
@@ -338,10 +339,10 @@ class AirQualitySource(DataSource):
                         logger.warning(f"[Air Quality API] HTTP error: {response.status_code}")
                 except requests.RequestException as e:
                     self.status = "OFFLINE"
-                    logger.error(f"[Air Quality API] Connection failed: {e}")
+                    logger.error(f"[Air Quality API] Connection failed: {type(e).__name__}")
                 except Exception as e:
                     self.status = "DEGRADED"
-                    logger.error(f"[Air Quality API] Unexpected parsing error: {e}")
+                    logger.error(f"[Air Quality API] Unexpected parsing error: {type(e).__name__}")
 
             time.sleep(self.poll_interval)
 
@@ -357,6 +358,8 @@ class GTFSTransitSource(DataSource):
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
         self.feed_url = (self.config.get('data_sources', {}).get('transit', {}).get('feed_url') or os.getenv('GTFS_FEED_URL') or '').strip()
+        if not valid_feed_url(self.feed_url):
+            self.feed_url = ''
         self.poll_interval = int(os.getenv("GTFS_POLL_INTERVAL", "60"))
         self.status = "READY" if self.feed_url else "NOT_CONFIGURED"
         self.last_checked_at = None
@@ -474,7 +477,7 @@ class GTFSTransitSource(DataSource):
             feed = gtfs_realtime_pb2.FeedMessage()
             feed.ParseFromString(content_bytes)
         except Exception as e:
-            logger.warning(f"[GTFS Transit API] Protobuf parse error: {e}")
+            logger.warning(f"[GTFS Transit API] Protobuf parse error: {type(e).__name__}")
             return []
 
         feed_dict = {
@@ -563,10 +566,10 @@ class GTFSTransitSource(DataSource):
                     logger.warning(f"[GTFS Transit API] Feed HTTP error: {resp.status_code}")
             except requests.RequestException as e:
                 self.status = "OFFLINE"
-                logger.warning(f"[GTFS Transit API] Feed request failed: {e}")
+                logger.warning(f"[GTFS Transit API] Feed request failed: {type(e).__name__}")
             except Exception as e:
                 self.status = "DEGRADED"
-                logger.error(f"[GTFS Transit API] Feed decode failure: {e}")
+                logger.error(f"[GTFS Transit API] Feed decode failure: {type(e).__name__}")
 
             time.sleep(self.poll_interval)
 
@@ -620,7 +623,7 @@ def ingest_webhook_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         except (ValueError, TypeError) as e:
             if "range" in str(e):
                 raise
-            raise ValueError(f"Coordinates must be numeric: {e}")
+            raise ValueError(f"Coordinates must be numeric: {type(e).__name__}")
 
     severity = str(payload.get("severity", "HIGH")).upper()
     source = payload.get("source", "external_webhook")

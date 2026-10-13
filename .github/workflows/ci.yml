@@ -26,7 +26,7 @@ jobs:
   frontend:
     runs-on: ubuntu-latest
     env:
-      VITE_API_BASE_URL: http://127.0.0.1:10000
+      VITE_API_BASE_URL: https://backend.example.test
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -34,4 +34,51 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: cd frontend && npm ci && npm run test:preflight && npm run build
+      - run: cd frontend && npm ci && npm run test:preflight && npm run lint && npm run build
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PORT: '10003'
+      AUTH_DB_PATH: /tmp/urban-rebuild-ci-auth.db
+      CORS_ORIGINS: http://127.0.0.1:5176,http://127.0.0.1:5177
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:5176
+      PLAYWRIGHT_PAGES_URL: http://127.0.0.1:5177
+      TEST_API_ORIGIN: http://127.0.0.1:10003
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: pip install -r requirements-dev.txt
+      - run: cd frontend && npm ci && npx playwright install --with-deps chromium firefox webkit
+      - name: Start isolated QA services
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:10003
+        run: |
+          python -m src.main > /tmp/urban-backend.log 2>&1 &
+          cd frontend
+          npm run dev -- --port 5176 --strictPort > /tmp/urban-frontend.log 2>&1 &
+      - run: python tests/wait_local_services.py http://127.0.0.1:10003/api/health http://127.0.0.1:5176
+      - run: cd frontend && npm run test:e2e && npm run test:cross
+      - name: Build and test the Pages artifact without public API mutations
+        env:
+          VITE_API_BASE_URL: https://backend.example.test
+          VITE_BASE_PATH: /pathway-safety-urban-planning/
+          VITE_ROUTER_MODE: hash
+          VITE_DEPLOY_TARGET: github-pages
+        run: |
+          cd frontend
+          npm run build
+          node scripts/verify-artifact.mjs
+          npm run preview -- --host 127.0.0.1 --port 5177 --strictPort > /tmp/urban-preview.log 2>&1 &
+          python ../tests/wait_local_services.py http://127.0.0.1:5177/pathway-safety-urban-planning/
+          npm run test:pages
+      - name: Service diagnostics on failure
+        if: failure()
+        run: tail -n 60 /tmp/urban-*.log

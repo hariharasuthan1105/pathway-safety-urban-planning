@@ -1,26 +1,17 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { validateBackendOrigin } from './scripts/verify-backend.mjs'
 
 // https://vite.dev/config/
 export default defineConfig(({command,mode}) => {
   const env=loadEnv(mode,process.cwd(),'VITE_');
   const api=(process.env.VITE_API_BASE_URL??env.VITE_API_BASE_URL??'').trim();
-  const pages=(process.env.VITE_DEPLOY_TARGET??env.VITE_DEPLOY_TARGET)==='github-pages';
   const base=(process.env.VITE_BASE_PATH??env.VITE_BASE_PATH??'/').trim();
   if (!/^\/(?!\/)[^?#]*\/$/.test(base) && base !== '/') {
     throw new Error('VITE_BASE_PATH must be an absolute path ending in /.');
   }
-  if(command==='build') {
-    let origin: URL;
-    try { origin=new URL(api); } catch { throw new Error('Set VITE_API_BASE_URL to a valid API origin before building.'); }
-    if(!['http:','https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname!=='/' || origin.search || origin.hash) {
-      throw new Error('VITE_API_BASE_URL must be an HTTP(S) origin without credentials, path, query or fragment.');
-    }
-    if(pages && (origin.protocol!=='https:' || ['localhost','127.0.0.1','[::1]'].includes(origin.hostname))) {
-      throw new Error('GitHub Pages requires a verified public HTTPS backend origin; loopback API targets are forbidden.');
-    }
-  }
+  if(command==='build') validateBackendOrigin(api);
   return {
   base,
   plugins: [react(), tailwindcss(), {

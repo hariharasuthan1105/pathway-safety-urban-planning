@@ -149,8 +149,9 @@ def test_edge_cases():
     # 1. Empty Stream
     csm = CityStateManager()
     empty_state = csm.get_live_city_state()
-    assert empty_state["overall_risk_score"] == 0
-    assert empty_state["overall_risk_level"] == "LOW"
+    assert empty_state["overall_risk_score"] is None
+    assert empty_state["risk_unavailable_reason"]
+    assert empty_state["overall_risk_level"] == "UNKNOWN"
     assert len(empty_state["correlations"]) == 0
 
     # 2. Duplicate events handling

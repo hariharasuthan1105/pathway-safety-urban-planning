@@ -10,6 +10,7 @@ import datetime
 import os
 import logging
 import threading
+from ..source_config import valid_feed_url
 from functools import wraps
 from typing import Dict, Any, List, Optional
 
@@ -47,6 +48,8 @@ class CityStateManager:
         self.anomaly_detector = AnomalyDetector(self.config)
 
         feed_url = (self.config.get("data_sources", {}).get("transit", {}).get("feed_url") or os.getenv("GTFS_FEED_URL") or "").strip()
+        if not valid_feed_url(feed_url):
+            feed_url = ''
         self.source_freshness: Dict[str, Dict[str, Any]] = {
             "weather_api": {
                 "source_id": "weather_api", "mode": "LIVE", "connector_status": "WAITING",
@@ -153,7 +156,7 @@ class CityStateManager:
         data_dict = event.get("data", {}) if isinstance(event.get("data"), dict) else {}
         obs_time = data_dict.get("observed_at") or event.get("timestamp")
         recv_time = data_dict.get("received_at") or datetime.datetime.now(datetime.timezone.utc).isoformat()
-        self.update_source_freshness(source_name=source, mode=data_mode, status="LIVE",
+        self.update_source_freshness(source_name=source, mode=data_mode, status="SIMULATED" if data_mode == "SIMULATED" else "LIVE",
                                     observed_at=obs_time, received_at=recv_time)
 
         # Process through anomaly UDF
@@ -238,8 +241,10 @@ class CityStateManager:
                     "anomaly_count": 0,
                     "weather": None,
                     "air_quality": None,
-                    "risk_score": 0,
-                    "risk_level": "LOW"
+                    "risk_score": None,
+                    "risk_level": "UNKNOWN",
+                    "unavailable_reason": "No events recorded for this city",
+                    "source_class": "DERIVED"
                 }
 
             for ev in recent_60m_events:
@@ -286,6 +291,9 @@ class CityStateManager:
 
             for cs in city_summaries.values():
                 score = (cs["critical_count"] * 30) + (cs["high_count"] * 18) + (cs["anomaly_count"] * 15) + (cs["event_count"] * 2)
+                if not cs["event_count"]:
+                    continue
+                cs["unavailable_reason"] = None
                 cs["risk_score"] = min(100, score)
                 cs["risk_level"] = "CRITICAL" if score > 75 else ("HIGH" if score > 50 else ("MODERATE" if score > 25 else "LOW"))
         except Exception as e:
@@ -297,15 +305,17 @@ class CityStateManager:
         freshness_report = {}
         for src, info in self.source_freshness.items():
             freshness_copy = dict(info)
+            threshold = float(self.config.get("freshness_seconds", {}).get(src, os.getenv("SOURCE_STALE_SECONDS", "600")))
+            freshness_copy["stale_after_seconds"] = threshold
             ts = freshness_copy.get("observed_at") or freshness_copy.get("last_update")
             if ts:
                 try:
                     last_dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
                     age = (now - last_dt).total_seconds()
                     freshness_copy["freshness_age_seconds"] = max(0, int(age))
-                    if age > 600:
+                    if age > threshold:
                         freshness_copy["observation_status"] = "STALE"
-                        if freshness_copy.get("status") in {"LIVE", "RUNNING"}:
+                        if freshness_copy.get("status") in {"LIVE", "RUNNING", "SIMULATED"}:
                             freshness_copy["status"] = "STALE"
                 except Exception:
                     freshness_copy["freshness_age_seconds"] = None
@@ -323,8 +333,9 @@ class CityStateManager:
             self._add_intelligence_alert(corr["reason"], "cross_source_correlation")
 
         return {
-            "overall_risk_score": risk_result["risk_score"],
-            "overall_risk_level": risk_result["risk_level"],
+            "overall_risk_score": risk_result["risk_score"] if recent_60m_events else None,
+            "risk_unavailable_reason": None if recent_60m_events else "No events in the one-hour window",
+            "overall_risk_level": risk_result["risk_level"] if recent_60m_events else "UNKNOWN",
             "risk_trend": risk_result["risk_trend"],
             "contributing_factors": risk_result["contributing_factors"],
             "evidence": risk_result["evidence"],
@@ -353,3 +364,4 @@ class CityStateManager:
         alert = {"time": now_str, "message": msg, "category": category}
         if not self.intelligence_feed or self.intelligence_feed[-1]["message"] != msg:
             self.intelligence_feed.append(alert)
+            del self.intelligence_feed[:-200]

@@ -64,6 +64,8 @@ export function createActors(low: boolean): Actor[] {
     return a;
 }
 export function signalPhase(t: number): 'EAST_WEST' | 'AMBER_EW' | 'NORTH_SOUTH' | 'AMBER_NS' | 'CROSSING' { const p = t % 28; return p < 10 ? 'EAST_WEST' : p < 12 ? 'AMBER_EW' : p < 22 ? 'NORTH_SOUTH' : p < 24 ? 'AMBER_NS' : 'CROSSING'; }
+const ewStops = [-66, 6, 70], nsStops = [-22, 18, 52];
+function position(a: Actor, x: number, y: number, z: number) { a.p[0]=x; a.p[1]=y; a.p[2]=z; }
 export function stepActor(a: Actor, dt: number, t: number) {
     const lane = a.lane;
     if (lane < 0)
@@ -71,18 +73,20 @@ export function stepActor(a: Actor, dt: number, t: number) {
     if (lane < 12) {
         const ns = lane >= 6, local = lane % 6, sign = local % 2 === 0 ? 1 : -1, road = Math.floor(local / 2);
         const length = ns ? 128 : 172, origin = ns ? -52 : -86;
-        const position = origin + (a.distance % length);
-        const stoplines = ns ? [-22, 18, 52] : [-66, 6, 70];
+        const currentPosition = origin + (a.distance % length);
+        const stoplines = ns ? nsStops : ewStops;
         const phase = signalPhase(t);
         const allowed = phase === (ns ? 'NORTH_SOUTH' : 'EAST_WEST');
-        const distanceToStop = Math.min(...stoplines.map(v => { const dist = (v - sign * 8 - position) * sign; return dist >= 0 ? dist : Infinity; }));
+        let distanceToStop = Infinity;
+        for (const v of stoplines) { const dist=(v-sign*8-currentPosition)*sign; if(dist>=0) distanceToStop=Math.min(distanceToStop,dist); }
         const speed = a.type === 'Bus' ? 3.4 : 4.2;
         let delta = speed * dt;
         if (!allowed && distanceToStop < delta + .1)
             delta = Math.max(0, distanceToStop - .1);
         a.distance = (a.distance + sign * delta + length) % length;
         const value = origin + a.distance;
-        a.p = ns ? [[-66, 6, 70][road] - sign * 2, .15, value] : [value, .15, [-22, 18, 52][road] + sign * 2];
+        if(ns) position(a, ewStops[road]-sign*2, .15, value);
+        else position(a, value, .15, nsStops[road]+sign*2);
         a.angle = ns ? -sign * Math.PI / 2 : sign === 1 ? 0 : Math.PI;
     }
     else if (lane === 20 || lane === 21) {
@@ -100,16 +104,16 @@ export function stepActor(a: Actor, dt: number, t: number) {
     else if (lane === 30) {
         const cycle = t % 180;
         if (cycle < 120) {
-            a.p = [-65, .3, -56];
+            position(a, -65, .3, -56);
             a.angle = 0;
         }
         else if (cycle < 135) {
-            a.p = [-65, .3, -56 - (cycle - 120) * .8];
+            position(a, -65, .3, -56 - (cycle - 120) * .8);
             a.angle = Math.PI / 2;
         }
         else {
             const f = cycle - 135;
-            a.p = [-65 + f * (2 + f * .035), .3 + Math.max(0, f - 24) * 1.7, -68];
+            position(a, -65 + f * (2 + f * .035), .3 + Math.max(0, f - 24) * 1.7, -68);
             a.angle = 0;
         }
     }
@@ -117,19 +121,19 @@ export function stepActor(a: Actor, dt: number, t: number) {
         a.distance = (a.distance + dt * 2) % 130;
         const d = a.distance;
         if (d < 47) {
-            a.p = [19 + d, .45, 42];
+            position(a, 19 + d, .45, 42);
             a.angle = 0;
         }
         else if (d < 65) {
-            a.p = [66, .45, 42 - (d - 47)];
+            position(a, 66, .45, 42 - (d - 47));
             a.angle = Math.PI / 2;
         }
         else if (d < 112) {
-            a.p = [66 - (d - 65), .45, 24];
+            position(a, 66 - (d - 65), .45, 24);
             a.angle = Math.PI;
         }
         else {
-            a.p = [19, .45, 24 + (d - 112)];
+            position(a, 19, .45, 24 + (d - 112));
             a.angle = -Math.PI / 2;
         }
     }
@@ -138,19 +142,19 @@ export function stepActor(a: Actor, dt: number, t: number) {
         const d = a.distance;
         const i = a.id;
         if (lane === 50) {
-            a.p = [-59 + (d % 52), .4, 9 + (i % 5) * .65];
+            position(a, -59 + (d % 52), .4, 9 + (i % 5) * .65);
             a.angle = 0;
         }
         else if (lane === 51) {
-            a.p = [-80 + (d % 160), .4, 25.5 + (i % 3) * .55];
+            position(a, -80 + (d % 160), .4, 25.5 + (i % 3) * .55);
             a.angle = 0;
         }
         else if (lane === 52) {
-            a.p = [21 + (d % 42), .65, 29 + (i % 3) * .8];
+            position(a, 21 + (d % 42), .65, 29 + (i % 3) * .8);
             a.angle = 0;
         }
         else if (lane === 53) {
-            a.p = [-59 + (i % 5) * .6, .4, -18 + (d % 65)];
+            position(a, -59 + (i % 5) * .6, .4, -18 + (d % 65));
             a.angle = -Math.PI / 2;
         }
         else {
@@ -163,7 +167,7 @@ export function stepActor(a: Actor, dt: number, t: number) {
             }
             else
                 a.distance = 0;
-            a.p = [12 + (i % 12) * .32, .3, 12 + (a.distance % 12) - (a.distance === 0 ? Math.floor((i % 110) / 12) * .35 : 0)];
+            position(a, 12 + (i % 12) * .32, .3, 12 + (a.distance % 12) - (a.distance === 0 ? Math.floor((i % 110) / 12) * .35 : 0));
             a.angle = -Math.PI / 2;
         }
     }

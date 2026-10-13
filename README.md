@@ -104,17 +104,17 @@ npm run test:e2e
 
 ## Frontend hosting and publishing
 
-The existing public frontend is hosted on **GitHub Pages**, currently configured to publish `main` from repository root (`/`). That root contains the legacy HTML/Three.js application with OpenAI branding and a hardcoded localhost API. Merged main `5857851c24474d8a5bdf90fc4b8434c3f14dc818` contains the voxel React project, but the CI build does not publish its output. This explains the old live frontend; clearing browser cache cannot replace the wrong artifact.
+The host is GitHub Pages, confirmed by its API on 13 October 2026 with workflow publishing enabled. The active application is `frontend/index.html` → `src/main.tsx` → `src/app/App.tsx`; landing/auth and the protected digital-twin route mount the retained voxel scene. The Pages workflow publishes only `frontend/dist` with project-base assets and hash routing.
 
-Active React entry: `frontend/index.html` → `frontend/src/main.tsx` → `frontend/src/app/App.tsx`. `/` and `/login` mount `features/three/CityScene.tsx`; `/app/digital-twin` mounts the same scene in the protected workspace. `frontend/src/App.tsx` and root `index.html` are separate legacy entries, not imports of this application.
+Production builds require `VITE_API_BASE_URL` to be a valid absolute HTTPS origin. It must be present at build time. The workflow explicitly passes the repository variable to validation, bounded health checks, build, and artifact validation. A missing/invalid/unhealthy target blocks publishing; no hardcoded production API is used. The variable lookup returned 404, so its configuration remains unconfirmed.
 
-See [the exact Pages publishing steps](docs/FRONTEND_HOSTING.md). `.github/workflows/pages.yml` builds from `frontend`, uploads `frontend/dist`, and publishes only via an owner-approved manual run on `main`. It requires a repository variable containing the verified HTTPS backend origin, checks `/api/health`, and rejects loopback targets. No hosting settings or deployments were changed during the investigation.
+See [current dashboard and local testing steps](docs/FRONTEND_HOSTING.md) and [rebuild verification](docs/REBUILD_VERIFICATION.md). The current feature branch is `feat/urban-intelligence-rebuild-v2`. Merge/publication and backend deployment require separate approval.
 
 ## Production configuration and Render
 
-Copy `frontend/.env.production.example` to `frontend/.env.production`, set `VITE_API_BASE_URL` to the verified API origin, then run `npm ci && npm run build`. Production builds reject an empty or invalid origin; no production API proxy is assumed. Vite development proxy settings do not create a hosted proxy. Environment changes require rebuilding the static frontend. The production example deliberately leaves the origin blank. The previously used **https://urban-intelligence-backend-z869.onrender.com** still returns HTTP 503 and is not selected as a production target. A verified backend origin remains a required deployment configuration step.
+The public backend health check returned HTTP 200 HEALTHY on 13 October 2026 at 17:52:12 IST. This does not establish that the new authentication changes are deployed or that uptime is reliable. Render configuration was not changed and no deployment was performed.
 
-`render.yaml` defines the existing Python entry command, `/api/health`, one backend instance, static frontend SPA rewrite and an auth SQLite disk. The Blueprint selects a paid instance and mounts the authentication disk at `/var/data`; only data under that mount persists. Automatic deploy triggers are off in this source configuration. These settings have not been applied to the existing Render service. Preserve or migrate any existing auth database before changing its storage path. See [Render persistent disks](https://render.com/docs/disks). Set `CORS_ORIGINS` to the exact HTTPS frontend origin, `COOKIE_SECURE=true`, `COOKIE_SAMESITE=none`, `AUTH_DB_PATH=/var/data/auth_store.db`; keep Groq optional and server-side. Cross-site cookie blocking can require serving frontend/API under a shared site. Set the frontend API origin to the actual deployed backend URL and rebuild. Deployment acceptance alone is not success: inspect logs, native stream processing and repeated successful health/API responses. No deployment was performed.
+Retain the existing persistent SQLite authentication database. Production requires an explicit HTTPS frontend CORS origin, `ENVIRONMENT=production`, Secure/HttpOnly cookies, and backend-only secrets. The frontend uses a 15-minute in-memory bearer session with cookie compatibility; reload requires sign-in when cookies are unavailable. Cross-browser local checks passed, but actual hosted cross-site authentication remains unverified. Optional Groq uses `GROQ_MODEL`; missing keys or provider/malformed-response failures retain deterministic fallback.
 
 ## Known limits
 
@@ -122,10 +122,12 @@ This is a runnable, locally verified implementation, not certification of produc
 
 Runtime telemetry and history are in-memory and reset on restart; SQLite persists accounts only. Compatibility CSV/JSON sinks are diagnostic stubs, unlike native outputs. The retained heuristic risk score can saturate under frequent simulated events; it is not a calibrated probability or forecast. Recent event lists are a limited returned subset, while summary counts cover a larger rolling window. Default legacy zone boundaries are retained for unnamed historical inputs; source-city-labelled regional events are grouped by that label, not surveyed wards. External providers and map tiles require network access and remain subject to availability and usage policies. OpenStreetMap attribution is displayed; use a suitable tile service for higher-volume hosting.
 
-The ZIP excludes node_modules, virtual environments, caches, builds, local databases, logs and real environment files. It includes source, tests, manifests/lockfile, safe environment examples and deployment configuration. See `docs/CHANGE_AUDIT.md` for the source audit and `docs/REDESIGN_ARCHITECTURE.md` for architecture notes.
+Source control excludes node_modules, virtual environments, caches, builds, local databases, logs and real environment files. No new ZIP is part of this continuation. See `docs/CHANGE_AUDIT.md` for the source audit and `docs/REDESIGN_ARCHITECTURE.md` for architecture notes.
 
 ## Preview
 
 ![Existing interactive voxel metropolis](docs/voxel-city-preview.png)
 
-This revision continues the retained voxel project and preserves the existing GitHub history on `codex/voxel-telemetry-reliability`. No Render deployment is authorized or performed.
+This revision continues the retained voxel project and preserves the existing GitHub history on `feat/urban-intelligence-rebuild-v2`. No Render deployment is authorized or performed.
+
+Rebuild v2: unused `frontend/src/App.tsx`, `App.css`, and its three starter assets were removed after reference checks. The active entry remains `frontend/src/app/App.tsx`. Historical legacy-file descriptions above refer to earlier snapshots.

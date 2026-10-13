@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import type { User, AuthState } from '../types';
-import { fetchApi } from '../lib/api';
+import { fetchApi, setSessionToken } from '../lib/api';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string, remember?: boolean) => Promise<void>;
@@ -42,6 +42,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
 
     const handleAuthExpired = () => {
+      setSessionToken(null);
       revision.current++;
       setLoading(false);
       setUser(null);
@@ -55,10 +56,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string, remember: boolean = false) => {
     revision.current++;
     setLoading(false);
-    const data = await fetchApi<{ user: User }>('/api/auth/login', {
+    const data = await fetchApi<{ user: User; token: string }>('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password, remember }),
+      body: JSON.stringify({ email, password, remember, session_mode: 'memory' }),
     });
+    setSessionToken(data.token);
     setUser(data.user);
     setAuthenticated(true);
     setLoading(false);
@@ -67,10 +69,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signup = async (full_name: string, email: string, password: string) => {
     revision.current++;
     setLoading(false);
-    const data = await fetchApi<{ user: User }>('/api/auth/signup', {
+    const data = await fetchApi<{ user: User; token: string }>('/api/auth/signup', {
       method: 'POST',
-      body: JSON.stringify({ full_name, email, password }),
+      body: JSON.stringify({ full_name, email, password, session_mode: 'memory' }),
     });
+    setSessionToken(data.token);
     setUser(data.user);
     setAuthenticated(true);
     setLoading(false);
@@ -83,6 +86,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {
       // Ignore network errors on logout
     } finally {
+      setSessionToken(null);
       setUser(null);
       setAuthenticated(false);
     }

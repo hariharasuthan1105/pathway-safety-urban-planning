@@ -1,3 +1,4 @@
+import type { SourceClass, SourceStatus } from './provenance';
 // User & Session Authentication Types (§4)
 export interface User {
   id: string;
@@ -26,8 +27,11 @@ export interface DataSourceStatus {
   id: string;
   label: string;
   mode: 'LIVE' | 'SIMULATED' | 'EVENT_DRIVEN' | 'NOT_CONFIGURED';
-  status: string;
-  last_ok_at: string;
+  status: SourceStatus;
+  source_class?: SourceClass;
+  unavailable_reason?: string | null;
+  ingested_at?: string | null;
+  last_ok_at: string | null;
 }
 
 export interface WeatherTelemetry {
@@ -66,8 +70,8 @@ export interface CitySummary {
   weather?: WeatherTelemetry;
   air_quality?: AirQualityTelemetry;
   traffic?: TrafficTelemetry;
-  risk_score: number;
-  risk_level: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  risk_score: number | null;
+  risk_level: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL' | 'UNKNOWN';
 }
 
 export interface TelemetryEvent {
@@ -106,8 +110,8 @@ export interface Correlation {
 }
 
 export interface RegionState {
-  overall_risk_score: number;
-  overall_risk_level: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  overall_risk_score: number | null;
+  overall_risk_level: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL' | 'UNKNOWN';
   risk_trend: 'IMPROVING' | 'STABLE' | 'DETERIORATING';
   active_events: number;
   active_anomalies: number;
@@ -134,8 +138,8 @@ export interface UrbanState {
   active_anomalies: OperationalAnomaly[];
   correlations: Correlation[];
   data_freshness: DataFreshness;
-  overall_risk_score?: number;
-  overall_risk_level?: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL';
+  overall_risk_score?: number | null;
+  overall_risk_level?: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL' | 'UNKNOWN';
   risk_trend?: string;
   contributing_factors?: string[];
   last_updated?: string;

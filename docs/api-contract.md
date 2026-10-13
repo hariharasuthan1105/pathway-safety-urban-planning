@@ -206,7 +206,7 @@ Public/authenticated endpoint for external event ingestion.
 ## 4. AI Grounded Copilot
 
 ### `POST /api/ask`
-Queries Grounded RAG + OpenAI LLM using current state.
+Queries Grounded telemetry + optional Groq LLM using current state.
 
 **Request**:
 ```json
@@ -241,3 +241,9 @@ Queries Grounded RAG + OpenAI LLM using current state.
   "state_version_used": 1421
 }
 ```
+
+## Rebuild v2 additions
+
+Signup/login accept `session_mode: "memory"` for a 900-second session; legacy cookie mode remains compatible. The frontend retains the returned token in memory only, sends Authorization on protected API/fetch-SSE requests, and loses that token on reload. Logout revokes the presented bearer and cookie sessions. Production cookie-authenticated mutations require an allowed Origin and X-Requested-With: XMLHttpRequest. CORS requires explicit origins.
+
+No eligible observations yields `risk_score: null`, `risk_level: "UNKNOWN"`; clients must show unavailable. Source envelopes add `source_class`, `ingested_at`, and `unavailable_reason`; status separates LIVE, SIMULATED, STALE, DEGRADED, OFFLINE, NOT_CONFIGURED. Connector health and observation freshness remain separate. See REBUILD_VERIFICATION.md for the operating contract and deployment limitations.

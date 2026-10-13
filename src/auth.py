@@ -103,7 +103,7 @@ def signup_user(full_name: str, email: str, password: str) -> Dict[str, Any]:
         "created_at": now_iso
     }
 
-def authenticate_user(email: str, password: str, remember: bool = False) -> Dict[str, Any]:
+def authenticate_user(email: str, password: str, remember: bool = False, session_seconds: Optional[int] = None) -> Dict[str, Any]:
     """Authenticates user credentials and generates a session token."""
     email_clean = email.strip().lower()
     
@@ -128,7 +128,7 @@ def authenticate_user(email: str, password: str, remember: bool = False) -> Dict
     token = secrets.token_hex(32)
     now = datetime.datetime.now(datetime.timezone.utc)
     duration_days = 30 if remember else 1
-    expires_at = (now + datetime.timedelta(days=duration_days)).isoformat()
+    expires_at = (now + (datetime.timedelta(seconds=session_seconds) if session_seconds else datetime.timedelta(days=duration_days))).isoformat()
     now_iso = now.isoformat()
 
     with get_db_connection() as conn:
