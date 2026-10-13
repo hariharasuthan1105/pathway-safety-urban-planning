@@ -48,14 +48,18 @@ function Camera({ focus, reset }: {
         c.minPolarAngle = .17;
         c.target.set(0, 0, -3);
         c.addEventListener('change', changed);
-        const onWheel = () => {
-            c.update();
-            invalidate();
+        const onWindowWheel = (e: WheelEvent) => {
+            const host = gl.domElement.closest('.voxel-scene');
+            if (host && (host.contains(e.target as Node) || e.target === gl.domElement || e.target === document.body)) {
+                // Execute OrbitControls wheel handler and request next frame
+                (c as unknown as { _onMouseWheel?: (e: WheelEvent) => void })._onMouseWheel?.(e);
+                invalidate();
+            }
         };
-        gl.domElement.addEventListener('wheel', onWheel, { passive: true });
+        window.addEventListener('wheel', onWindowWheel, { passive: true });
         controls.current = c;
         return () => {
-            gl.domElement.removeEventListener('wheel', onWheel);
+            window.removeEventListener('wheel', onWindowWheel);
             c.removeEventListener('change', changed);
             c.dispose();
             controls.current = null;
