@@ -72,7 +72,7 @@ Set `GROQ_API_KEY` only in the backend environment. Never put it in any `VITE_*`
 | --- | --- |
 | Full Python suite on Windows compatibility runtime | **58 passed, 1 skipped**, 2 dependency deprecation warnings |
 | Non-empty stream regression | **PASS**, 2 records exactly once, anomalies reach filtered sink, `native=False` |
-| Native Pathway 0.33.0 execution | **SKIPPED / NOT VERIFIED** on this Windows host; Linux CI execution pending on the revision branch |
+| Native Pathway 0.33.0 execution | **PASS on Linux CI**: version 0.33.0 asserted, non-empty stream `native=True`, **3 passed, 0 skipped** in the native subscription suite |
 | TypeScript + Vite production build | **PASS**; lazy Three.js chunk approximately 915 KB / 249 KB gzip triggers a size warning |
 | Playwright Chromium suite | **8 passed**: auth, delayed-session regression, routes, map selection, Copilot, voxel controls, mobile/reduced motion, WebGL failure handling |
 | Build-time API origin | **PASS** build with explicit local validation origin http://127.0.0.1:10000; no healthy production origin verified |
@@ -87,6 +87,8 @@ Run tests from project root:
 .\.venv\Scripts\python.exe -m pytest tests -q
 .\.venv\Scripts\python.exe tests/stream_regression.py
 ```
+
+Verified Linux CI run: [38337027995](https://github.com/hariharasuthan1105/pathway-safety-urban-planning/actions/runs/38337027995) (native Pathway, full compatibility suite, and frontend build passed). This covers the finite native subscription regression, not a deployed service or every backend test under native execution.
 
 On native Linux install `pytest` and run `python -m pytest tests/test_subscription_contract.py -q`. This must succeed before treating native execution as verified.
 
@@ -108,7 +110,7 @@ Copy `frontend/.env.production.example` to `frontend/.env.production`, set `VITE
 
 ## Known limits
 
-This is a runnable, locally verified implementation, not certification of production deployment or performance on every device. Native Pathway and Render remain unverified. The voxel scene uses simplified motion and geometry, no full collision physics, no first-person/follow camera, and no surveyed asset matching. Its scale and visual treatment are inspired by the reference rather than an exact reproduction. ECO and reduced-motion modes help lower-end devices; hardware-specific frame-rate benchmarks were not performed.
+This is a runnable, locally verified implementation, not certification of production deployment or performance on every device. Native Pathway 0.33.0 streaming is verified in Linux CI; the Render deployment remains unverified. The voxel scene uses simplified motion and geometry, no full collision physics, no first-person/follow camera, and no surveyed asset matching. Its scale and visual treatment are inspired by the reference rather than an exact reproduction. ECO and reduced-motion modes help lower-end devices; hardware-specific frame-rate benchmarks were not performed.
 
 Runtime telemetry and history are in-memory and reset on restart; SQLite persists accounts only. Compatibility CSV/JSON sinks are diagnostic stubs, unlike native outputs. The retained heuristic risk score can saturate under frequent simulated events; it is not a calibrated probability or forecast. Recent event lists are a limited returned subset, while summary counts cover a larger rolling window. Default legacy zone boundaries are retained for unnamed historical inputs; source-city-labelled regional events are grouped by that label, not surveyed wards. External providers and map tiles require network access and remain subject to availability and usage policies. OpenStreetMap attribution is displayed; use a suitable tile service for higher-volume hosting.
 

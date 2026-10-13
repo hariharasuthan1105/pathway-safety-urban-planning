@@ -13,11 +13,12 @@ class StopPolling(BaseException):
 def test_waiting_simulators_are_not_external_observations(monkeypatch):
     monkeypatch.setattr(api, '_SOURCE_STATUS_PROVIDER', lambda: {
         'social_media': {'status': 'RUNNING'}, 'webhook_api': {'status': 'RUNNING'}})
-    report = api.source_freshness_report({'data_freshness': {}})
+    report = api.source_freshness_report(get_shared_city_state_manager().get_live_city_state())
     assert report['twitter']['mode'] == 'SIMULATED'
     assert report['twitter']['status'] == 'WAITING'
     assert report['twitter']['event_count'] == 0
     assert report['webhook_ingestion']['mode'] == 'EVENT_DRIVEN'
+    assert report['simulation_generator']['mode'] == 'SIMULATED'
 
 @pytest.fixture(autouse=True)
 def isolated(monkeypatch):

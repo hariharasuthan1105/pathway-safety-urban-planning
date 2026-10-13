@@ -49,8 +49,8 @@ class CityStateManager:
         self.source_freshness: Dict[str, Dict[str, Any]] = {
             "open_meteo_weather": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "LIVE"},
             "open_meteo_air_quality": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "LIVE"},
-            "webhook_ingestion": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "LIVE"},
-            "simulation_generator": {"last_update": None, "status": "OFFLINE", "event_count": 0, "mode": "SIMULATION"}
+            "webhook_ingestion": {"last_update": None, "status": "WAITING", "event_count": 0, "mode": "EVENT_DRIVEN"},
+            "simulation_generator": {"last_update": None, "status": "WAITING", "event_count": 0, "mode": "SIMULATED"}
         }
         feed_url = (self.config.get("data_sources", {}).get("transit", {}).get("feed_url") or os.getenv("GTFS_FEED_URL") or "").strip()
         self.source_freshness["gtfs_transit_api"] = {
