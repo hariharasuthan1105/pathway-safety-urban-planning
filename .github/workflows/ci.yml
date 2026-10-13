@@ -4,7 +4,7 @@ jobs:
   compatibility:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -13,23 +13,25 @@ jobs:
   native-pathway:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install -r requirements-render.txt pytest
       - run: python -c "import pathway; assert pathway.__version__ == '0.33.0'"
       - run: python tests/stream_regression.py
+        env:
+          REQUIRE_NATIVE_PATHWAY: '1'
       - run: python -m pytest tests/test_subscription_contract.py -q
   frontend:
     runs-on: ubuntu-latest
     env:
       VITE_API_BASE_URL: http://127.0.0.1:10000
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: cd frontend && npm ci && npm run build
+      - run: cd frontend && npm ci && npm run test:preflight && npm run build

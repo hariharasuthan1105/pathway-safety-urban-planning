@@ -23,7 +23,18 @@ export default defineConfig(({command,mode}) => {
   }
   return {
   base,
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), {
+    name: 'router-inert-url-base',
+    apply: 'build',
+    transform(code, id) {
+      // React Router's URL parser uses a loopback sentinel when no window is
+      // supplied. It is not an API endpoint. Keep the production artifact free
+      // of loopback strings by using a reserved, non-routable parsing origin.
+      if (id.replaceAll('\\', '/').includes('/node_modules/react-router/')) {
+        return { code: code.replaceAll('http://localhost', 'https://router.invalid'), map: null };
+      }
+    },
+  }],
   server: {
     port: 5173,
     proxy: {

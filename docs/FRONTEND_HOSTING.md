@@ -73,3 +73,19 @@ Open `http://127.0.0.1:5174/pathway-safety-urban-planning/`. In another frontend
 - Deployment preflight against the known Render service: correctly failed on actual HTTP 503.
 - Vite retains a ~915 KB Three.js chunk size warning; no scene redesign was performed.
 - Live public site still serves the legacy root artifact until the owner-approved publishing steps are completed. No healthy public backend origin, hosted authentication, or Pages publication of this fix has been verified.
+
+## Pages preflight variable correction
+
+The failed run [38343494503](https://github.com/hariharasuthan1105/pathway-safety-urban-planning/actions/runs/38343494503) received an empty `VITE_API_BASE_URL`. The repository had no Actions repository variables; `new URL('')` produced the unhelpful `Invalid URL` error.
+
+Both verification and Vite build steps now explicitly map `VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}`. Validation identifies **Settings → Secrets and variables → Actions → Variables → VITE_API_BASE_URL** when the value is missing, malformed or unsuitable. An Actions secret alone does not populate `vars.VITE_API_BASE_URL`.
+
+Set that repository variable to the user-supplied origin `https://urban-intelligence-backend-z869.onrender.com`. The actual health check now returns HTTP 200 with `status: HEALTHY`; this supersedes the earlier suspended-service observation in this document. Render settings were not changed.
+
+Verification: 20 preflight tests passed, 8 browser tests passed, TypeScript passed, and the Pages production build passed using that HTTPS origin. Bundle inspection found the supplied origin and no `http://localhost:8000`; the existing Three.js chunk warning remains. The workflow stays manual and the health check remains required. Review/merge the separate fix branch before an approved manual publication; this correction itself performs neither action.
+
+## Rebuild v2 publishing policy
+
+The feature branch adds main-only path-filtered publication and keeps manual dispatch. No feature branch push deploys. Validation rejects a trailing slash, retries health four times with a 75-second timeout budget, and asserts compiled assets. Prior observations above are historical. The latest preflight timed out on all attempts; health is not verified by a successful build.
+
+Action majors were queried through GitHub releases: checkout/setup-node v7, upload-pages-artifact/deploy-pages v5, configure-pages v6. React Router has two inert loopback URL parser defaults. A scoped build transform replaces those vendor defaults with https://router.invalid; runtime navigation still uses window.location. No API target is substituted. Artifact and route tests cover the compiled build.
