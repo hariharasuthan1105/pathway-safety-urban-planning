@@ -1,0 +1,51 @@
+name: Publish voxel frontend to GitHub Pages
+
+# Manual publication only, after the owner approves deployment.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+      VITE_DEPLOY_TARGET: github-pages
+      VITE_BASE_PATH: /pathway-safety-urban-planning/
+      VITE_ROUTER_MODE: hash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Verify configured backend is healthy
+        run: node frontend/scripts/verify-backend.mjs
+      - name: Build the active React application
+        working-directory: frontend
+        run: npm ci && npm run build
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v5
+      - name: Publish compiled frontend
+        id: deployment
+        uses: actions/deploy-pages@v4
