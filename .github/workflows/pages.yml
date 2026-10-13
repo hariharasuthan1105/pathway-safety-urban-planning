@@ -28,9 +28,16 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - name: Verify configured backend is healthy
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
         run: node frontend/scripts/verify-backend.mjs
       - name: Build the active React application
         working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+          VITE_DEPLOY_TARGET: github-pages
+          VITE_BASE_PATH: /pathway-safety-urban-planning/
+          VITE_ROUTER_MODE: hash
         run: npm ci && npm run build
       - uses: actions/upload-pages-artifact@v3
         with:

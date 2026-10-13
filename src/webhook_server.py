@@ -17,6 +17,9 @@ import time
 import asyncio
 import logging
 import threading
+import hmac
+import hashlib
+from collections import deque
 from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
@@ -36,6 +39,104 @@ logger = logging.getLogger("webhook_server")
 _AI_QUERY_HANDLER: Optional[Any] = None
 _SOURCE_STATUS_PROVIDER = None
 
+# Thread-safe in-memory deduplication cache and rate limiting
+_WEBHOOK_DEDUP_CACHE: Dict[str, float] = {}
+_WEBHOOK_RATE_LIMIT_LOG: Dict[str, deque] = {}
+_WEBHOOK_LOCK = threading.Lock()
+
+def _verify_webhook_authorization(request: Request, raw_body: bytes) -> None:
+    """
+    Verifies webhook authorization using configurable secret or HMAC signature.
+    Uses constant-time comparison to prevent timing side-channel attacks.
+    If WEBHOOK_SECRET is unconfigured, allows request (for local dev testing).
+    """
+    webhook_secret = os.getenv("WEBHOOK_SECRET", "").strip()
+    is_prod = os.getenv("ENVIRONMENT", "development").lower() in {"production", "prod"}
+    if not webhook_secret:
+        if is_prod:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Unauthorized webhook: WEBHOOK_SECRET must be configured in production environment."
+            )
+        return
+
+    # 1. Header: X-Webhook-Secret
+    secret_header = request.headers.get("X-Webhook-Secret", "").strip()
+    if secret_header and hmac.compare_digest(secret_header, webhook_secret):
+        return
+
+    # 2. Header: Authorization: Bearer <secret>
+    auth_header = request.headers.get("Authorization", "").strip()
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+        if hmac.compare_digest(token, webhook_secret):
+            return
+
+    # 3. Header: X-Webhook-Signature: sha256=<hex>
+    sig_header = request.headers.get("X-Webhook-Signature", "").strip()
+    if sig_header:
+        expected_sig = hmac.new(webhook_secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
+        provided_sig = sig_header.lower().replace("sha256=", "").strip()
+        if hmac.compare_digest(provided_sig, expected_sig):
+            return
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Unauthorized webhook: invalid or missing authorization secret/signature."
+    )
+
+def _get_client_ip(request: Request) -> str:
+    """
+    Safely resolves client IP respecting trusted proxy settings to prevent IP spoofing.
+    If TRUSTED_PROXIES is configured, inspects X-Forwarded-For safely if direct peer is trusted.
+    Otherwise strictly defaults to the direct TCP peer (request.client.host).
+    """
+    direct_ip = request.client.host if request.client else "unknown"
+    trusted_cfg = os.getenv("TRUSTED_PROXIES", "").strip()
+    if not trusted_cfg:
+        return direct_ip
+
+    trusted_proxies = {p.strip() for p in trusted_cfg.split(",") if p.strip()}
+    if direct_ip in trusted_proxies or "all" in trusted_proxies or "render" in trusted_proxies:
+        forwarded = request.headers.get("X-Forwarded-For", "").strip()
+        if forwarded:
+            hops = [ip.strip() for ip in forwarded.split(",") if ip.strip()]
+            if hops:
+                return hops[0]
+
+    return direct_ip
+
+def _check_webhook_rate_limit(client_ip: str) -> None:
+    """Sliding-window IP rate limiter for webhook endpoint."""
+    rpm_limit = int(os.getenv("WEBHOOK_RATE_LIMIT_RPM", "120"))
+    now = time.time()
+    with _WEBHOOK_LOCK:
+        if client_ip not in _WEBHOOK_RATE_LIMIT_LOG:
+            _WEBHOOK_RATE_LIMIT_LOG[client_ip] = deque()
+        timestamps = _WEBHOOK_RATE_LIMIT_LOG[client_ip]
+        while timestamps and (now - timestamps[0] > 60.0):
+            timestamps.popleft()
+        if len(timestamps) >= rpm_limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Webhook rate limit of {rpm_limit} requests/min exceeded.",
+                headers={"Retry-After": "60"}
+            )
+        timestamps.append(now)
+
+def _check_webhook_deduplication(event_id: str) -> bool:
+    """Returns True if already seen (duplicate), otherwise records it and returns False."""
+    now = time.time()
+    with _WEBHOOK_LOCK:
+        stale_keys = [k for k, ts in _WEBHOOK_DEDUP_CACHE.items() if (now - ts) > 3600]
+        for k in stale_keys:
+            del _WEBHOOK_DEDUP_CACHE[k]
+
+        if event_id in _WEBHOOK_DEDUP_CACHE:
+            return True
+        _WEBHOOK_DEDUP_CACHE[event_id] = now
+        return False
+
 def register_source_status_provider(provider):
     global _SOURCE_STATUS_PROVIDER
     _SOURCE_STATUS_PROVIDER = provider
@@ -52,18 +153,41 @@ def source_freshness_report(state):
     for connector_id, connector in runtime.items():
         key = aliases.get(connector_id, connector_id)
         mode = "SIMULATED" if key in simulated else "EVENT_DRIVEN" if key == "webhook_ingestion" else "LIVE"
-        entry = freshness.setdefault(key, {"last_update": None, "event_count": 0, "mode": mode, "status": "WAITING"})
-        observed = entry.get("status", "WAITING")
+        entry = freshness.setdefault(key, {
+            "source_id": key,
+            "last_update": None,
+            "observed_at": None,
+            "received_at": None,
+            "last_checked_at": None,
+            "event_count": 0,
+            "mode": mode,
+            "status": "WAITING",
+            "observation_status": "WAITING",
+            "connector_status": "WAITING",
+            "freshness_age_seconds": None,
+            "error_code": None
+        })
+        observed = entry.get("observation_status") or entry.get("status", "WAITING")
         status_value = connector.get("status", "WAITING").replace(" ", "_")
+        entry["source_id"] = key
         entry["observation_status"] = observed
         entry["connector_status"] = status_value
         if status_value in {"OFFLINE", "DEGRADED", "NOT_CONFIGURED"}:
             entry["status"] = status_value
         elif not entry.get("event_count"):
             entry["status"] = status_value if status_value in {"READY", "REACHABLE"} else "WAITING"
-        entry["last_checked_at"] = connector.get("last_checked_at")
+        entry["last_checked_at"] = connector.get("last_checked_at") or entry.get("last_checked_at")
         if status_value == "NOT_CONFIGURED":
             entry["mode"] = "NOT_CONFIGURED"
+    # Ensure standardized fields on every entry
+    for k, entry in freshness.items():
+        entry["source_id"] = k
+        entry.setdefault("connector_status", entry.get("status", "WAITING"))
+        entry.setdefault("observation_status", entry.get("status", "WAITING"))
+        entry.setdefault("observed_at", entry.get("last_update"))
+        entry.setdefault("received_at", entry.get("last_update"))
+        entry.setdefault("freshness_age_seconds", None)
+        entry.setdefault("error_code", None)
     return freshness
 
 
@@ -227,11 +351,26 @@ async def get_state(current_user: Dict[str, Any] = Depends(get_current_user)):
                                ("environment_simulation", "ENVIRONMENT SIMULATION")]:
                 if sid in freshness:
                     specs.append((sid, label, "SIMULATED"))
-        state["sources"] = [{"id": sid, "label": label, "mode": mode,
+        state["sources"] = [{"id": sid, "source_id": sid, "label": label, "mode": mode,
                              "status": freshness.get(sid, {}).get("status", "WAITING"),
-                             "last_ok_at": freshness.get(sid, {}).get("last_update")}
+                             "connector_status": freshness.get(sid, {}).get("connector_status", "WAITING"),
+                             "observation_status": freshness.get(sid, {}).get("observation_status", "WAITING"),
+                             "last_ok_at": freshness.get(sid, {}).get("last_update"),
+                             "observed_at": freshness.get(sid, {}).get("observed_at"),
+                             "received_at": freshness.get(sid, {}).get("received_at"),
+                             "freshness_age_seconds": freshness.get(sid, {}).get("freshness_age_seconds")}
                             for sid, label, mode in specs]
-        state["sources"].append({"id": "gtfs_transit", "label": "GTFS TRANSIT", "mode": "NOT_CONFIGURED", "status": "NOT_CONFIGURED", "last_ok_at": freshness.get("gtfs_transit_api", {}).get("last_update")})
+        state["sources"].append({
+            "id": "gtfs_transit", "source_id": "gtfs_transit_api", "label": "GTFS TRANSIT",
+            "mode": freshness.get("gtfs_transit_api", {}).get("mode", "NOT_CONFIGURED"),
+            "status": freshness.get("gtfs_transit_api", {}).get("status", "NOT_CONFIGURED"),
+            "connector_status": freshness.get("gtfs_transit_api", {}).get("connector_status", "NOT_CONFIGURED"),
+            "observation_status": freshness.get("gtfs_transit_api", {}).get("observation_status", "NOT_CONFIGURED"),
+            "last_ok_at": freshness.get("gtfs_transit_api", {}).get("last_update"),
+            "observed_at": freshness.get("gtfs_transit_api", {}).get("observed_at"),
+            "received_at": freshness.get("gtfs_transit_api", {}).get("received_at"),
+            "freshness_age_seconds": freshness.get("gtfs_transit_api", {}).get("freshness_age_seconds")
+        })
         runtime_status = _SOURCE_STATUS_PROVIDER() if _SOURCE_STATUS_PROVIDER else {}
         for source in state["sources"]:
             connector_id = {"webhook_ingestion": "webhook_api", "gtfs_transit": "gtfs_transit_api", "twitter": "social_media", "police_scanner": "public_safety", "city_sensors": "iot_sensors"}.get(source["id"], source["id"])
@@ -240,13 +379,17 @@ async def get_state(current_user: Dict[str, Any] = Depends(get_current_user)):
                 status_value = connector.get("status", "WAITING").replace(" ", "_")
                 if status_value in {"OFFLINE", "DEGRADED"}:
                     source["status"] = status_value
+                    source["connector_status"] = status_value
                 elif status_value in {"READY", "NOT_CONFIGURED"}:
                     source["status"] = status_value
+                    source["connector_status"] = status_value
                 if source["id"] == "gtfs_transit" and status_value != "NOT_CONFIGURED":
                     source["mode"] = "LIVE"
                     source["status"] = status_value
+                    source["connector_status"] = status_value
             elif runtime_status and source["mode"] != "EVENT_DRIVEN":
                 source["status"] = "NOT_CONFIGURED"
+                source["connector_status"] = "NOT_CONFIGURED"
         summaries = state.get("city_summaries", {})
         state["region"] = {"overall_risk_score": state["overall_risk_score"],
             "overall_risk_level": state["overall_risk_level"], "risk_trend": state["risk_trend"],
@@ -259,15 +402,18 @@ async def get_state(current_user: Dict[str, Any] = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/stream")
-async def stream_state_updates(current_user: Dict[str, Any] = Depends(get_current_user)):
+async def stream_state_updates(request: Request, current_user: Dict[str, Any] = Depends(get_current_user)):
     """Server-Sent Events (SSE) streaming endpoint pushing real-time state deltas."""
     async def event_generator():
         city_state_mgr = get_shared_city_state_manager()
 
         while True:
+            if await request.is_disconnected():
+                break
             try:
                 state = city_state_mgr.get_live_city_state()
-                current_version = int(time.time() * 10)
+                freshness = source_freshness_report(state)
+                current_version = sum(v.get("event_count", 0) for v in freshness.values())
 
                 payload = {
                     "event": "state_update",
@@ -275,8 +421,12 @@ async def stream_state_updates(current_user: Dict[str, Any] = Depends(get_curren
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "overall_risk_score": state.get("overall_risk_score", 0),
                     "overall_risk_level": state.get("overall_risk_level", "LOW"),
+                    "risk_trend": state.get("risk_trend", "STABLE"),
                     "recent_event_count": len(state.get("recent_events", [])),
-                    "city_summaries": state.get("city_summaries", {})
+                    "city_summaries": state.get("city_summaries", {}),
+                    "active_anomalies": state.get("active_anomalies", []),
+                    "correlations": state.get("correlations", []),
+                    "data_freshness": freshness
                 }
                 yield f"event: state_update\ndata: {json.dumps(payload)}\n\n"
                 await asyncio.sleep(2.5)
@@ -371,14 +521,76 @@ async def get_recent_events(current_user: Dict[str, Any] = Depends(get_current_u
 
 @app.post("/events")
 async def ingest_webhook_event(request: Request):
-    """Receives external incident reports and webhook payloads."""
+    """
+    Receives external incident reports and webhook payloads with production security:
+    - Payload size limit (default 64KB, configurable via MAX_WEBHOOK_PAYLOAD_BYTES)
+    - Configurable constant-time shared secret / HMAC signature verification
+    - Schema & coordinate bounds validation
+    - IP-based sliding window rate limiting
+    - Event deduplication cache
+    """
+    client_ip = _get_client_ip(request)
+    _check_webhook_rate_limit(client_ip)
+
+    max_bytes = int(os.getenv("MAX_WEBHOOK_PAYLOAD_BYTES", "65536"))
+    raw_body = await request.body()
+    if len(raw_body) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Webhook payload size ({len(raw_body)} bytes) exceeds configured limit ({max_bytes} bytes)."
+        )
+
+    _verify_webhook_authorization(request, raw_body)
+
     try:
-        body = await request.json()
+        body = json.loads(raw_body.decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Malformed JSON webhook payload.")
+
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Payload must be a JSON object.")
+
+    # Validate coordinate boundaries
+    lat = body.get("latitude") if body.get("latitude") is not None else body.get("location", {}).get("lat") if isinstance(body.get("location"), dict) else None
+    lon = body.get("longitude") if body.get("longitude") is not None else body.get("location", {}).get("lon") if isinstance(body.get("location"), dict) else None
+
+    if lat is None or lon is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Coordinates required: latitude and longitude must be provided."
+        )
+
+    try:
+        f_lat, f_lon = float(lat), float(lon)
+        if not (-90.0 <= f_lat <= 90.0 and -180.0 <= f_lon <= 180.0):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Coordinates out of valid range: lat [-90, 90], lon [-180, 180]. Got ({f_lat}, {f_lon})."
+            )
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Coordinates must be numeric.")
+
+    # Deduplication check
+    event_id = str(body.get("event_id") or "").strip()
+    if event_id:
+        if _check_webhook_deduplication(event_id):
+            return JSONResponse(
+                status_code=status.HTTP_409_CONFLICT,
+                content={"status": "DUPLICATE", "event_id": event_id, "detail": f"Event '{event_id}' has already been processed."}
+            )
+
+    try:
         event = ingest_webhook_payload(body)
-        return {"status": "INGESTED", "event_id": event["data"]["event_id"], "timestamp": datetime.now(timezone.utc).isoformat()}
+        return {
+            "status": "INGESTED",
+            "event_id": event["data"]["event_id"],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+    except ValueError as ve:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(ve))
     except Exception as e:
         logger.error(f"Webhook ingestion error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 @app.post("/api/ask")
 def ask_copilot(req: AskRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
