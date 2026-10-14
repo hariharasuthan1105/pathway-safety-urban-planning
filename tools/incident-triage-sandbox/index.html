@@ -1,0 +1,182 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="An educational sandbox for prioritizing illustrative urban safety incidents.">
+  <meta name="theme-color" content="#102a43">
+  <title>Incident Triage Sandbox</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo" aria-hidden="true">+</div>
+    <div>
+      <p class="eyebrow">URBAN SAFETY LAB</p>
+      <h1>Incident Triage Sandbox</h1>
+    </div>
+    <span class="demo-label">Educational Demo</span>
+  </header>
+
+  <main class="container">
+    <section class="intro">
+      <p class="eyebrow">DECISION SUPPORT EXPERIMENT</p>
+      <h2>Prioritize incidents. Understand the risks.</h2>
+      <p>
+        Explore how incident severity, likelihood, and potential impact
+        can help organize an urban-safety incident queue.
+      </p>
+    </section>
+
+    <section class="stats" aria-label="Incident statistics">
+      <article class="stat-card">
+        <span>Total incidents</span>
+        <strong id="total-count">0</strong>
+      </article>
+      <article class="stat-card">
+        <span>High priority</span>
+        <strong id="high-count">0</strong>
+      </article>
+      <article class="stat-card">
+        <span>Average score</span>
+        <strong id="average-score">0</strong>
+      </article>
+    </section>
+
+    <div class="workspace">
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">NEW ENTRY</p>
+            <h2>Add an incident</h2>
+          </div>
+          <span class="step">01</span>
+        </div>
+
+        <form id="incident-form">
+          <label for="incident-title">Incident title</label>
+          <input
+            id="incident-title"
+            name="title"
+            maxlength="90"
+            placeholder="e.g. Damaged pedestrian crossing"
+            required
+          >
+
+          <label for="incident-location">Location or area</label>
+          <input
+            id="incident-location"
+            name="location"
+            maxlength="90"
+            placeholder="e.g. North bus stop"
+            required
+          >
+
+          <div class="field-grid">
+            <div>
+              <label for="severity">Severity</label>
+              <select id="severity" name="severity">
+                <option value="1">1 — Minimal</option>
+                <option value="2">2 — Low</option>
+                <option value="3" selected>3 — Moderate</option>
+                <option value="4">4 — Serious</option>
+                <option value="5">5 — Critical</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="likelihood">Likelihood</label>
+              <select id="likelihood" name="likelihood">
+                <option value="1">1 — Rare</option>
+                <option value="2">2 — Unlikely</option>
+                <option value="3" selected>3 — Possible</option>
+                <option value="4">4 — Likely</option>
+                <option value="5">5 — Frequent</option>
+              </select>
+            </div>
+          </div>
+
+          <label for="people">Potential people affected</label>
+          <select id="people" name="people">
+            <option value="1">1–5 people</option>
+            <option value="2">6–20 people</option>
+            <option value="3" selected>21–50 people</option>
+            <option value="4">51–100 people</option>
+            <option value="5">More than 100 people</option>
+          </select>
+
+          <button class="primary-button" type="submit">
+            Add to triage queue <span aria-hidden="true">↗</span>
+          </button>
+
+          <p class="form-note">
+            Data remains in this browser session. Nothing is uploaded.
+          </p>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading queue-heading">
+          <div>
+            <p class="eyebrow">LIVE QUEUE</p>
+            <h2>Priority overview</h2>
+          </div>
+
+          <div class="filter-control">
+            <label for="priority-filter">Filter</label>
+            <select id="priority-filter">
+              <option value="all">All priorities</option>
+              <option value="high">High</option>
+              <option value="medium">Medium</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="legend">
+          <span><i class="dot high-dot"></i>High: 60+</span>
+          <span><i class="dot medium-dot"></i>Medium: 25–59</span>
+          <span><i class="dot low-dot"></i>Low: under 25</span>
+        </div>
+
+        <div id="incident-list" aria-live="polite"></div>
+
+        <div id="empty-state" class="empty-state" hidden>
+          <div class="empty-icon" aria-hidden="true">◎</div>
+          <h3>No incidents in this view</h3>
+          <p>Add an incident or select another priority filter.</p>
+        </div>
+
+        <div class="queue-actions">
+          <button id="export-button" class="secondary-button" type="button">
+            Export CSV
+          </button>
+          <button id="reset-button" class="text-button" type="button">
+            Reset sample data
+          </button>
+        </div>
+      </section>
+    </div>
+
+    <section class="method-note">
+      <span aria-hidden="true">ⓘ</span>
+      <div>
+        <h2>How is the score calculated?</h2>
+        <p>
+          <strong>Score = Severity × Likelihood × Impact.</strong>
+          Impact is represented by the selected population band, rated
+          from 1 to 5. The maximum score is 125. This is an illustrative
+          scoring model, not a validated risk assessment.
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      Standalone contributor demo · No production integration · No external dependencies
+    </footer>
+  </main>
+</body>
+</html>
+```
